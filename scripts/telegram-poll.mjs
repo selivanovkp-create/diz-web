@@ -4,10 +4,10 @@
  * Runs without webhook (works with GitHub Pages static hosting).
  */
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const appUrl = (process.env.APP_URL || "https://selivanovkp-create.github.io/diz-web").replace(
-  /\/$/,
-  "",
-);
+const appUrl = (
+  process.env.APP_URL || "https://forma-seven-alpha.vercel.app"
+).replace(/\/$/, "");
+
 
 if (!token) {
   console.error("TELEGRAM_BOT_TOKEN required");

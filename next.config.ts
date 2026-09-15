@@ -11,7 +11,19 @@ const nextConfig: NextConfig = {
         images: { unoptimized: true },
         trailingSlash: true,
       }
-    : {}),
+    : {
+        // Telegram Mini App WebViews cache aggressively — keep HTML fresh.
+        async headers() {
+          return [
+            {
+              source: "/:path*",
+              headers: [
+                { key: "Cache-Control", value: "no-store, must-revalidate" },
+              ],
+            },
+          ];
+        },
+      }),
 };
 
 export default nextConfig;
