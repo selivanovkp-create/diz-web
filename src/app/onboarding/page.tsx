@@ -24,47 +24,79 @@ const WHY: { id: WhyOption; label: string; area: LifeAreaKey }[] = [
   { id: "other", label: "Другое", area: "lifestyle" },
 ];
 
-const STATE_FIELDS: {
-  key: "energy" | "sleep" | "mood" | "stress" | "activity" | "habits" | "work";
-  label: string;
-  showIf: (selected: WhyOption[]) => boolean;
-}[] = [
-  { key: "energy", label: "Энергия днём", showIf: () => true },
-  {
-    key: "sleep",
-    label: "Сон",
-    showIf: (s) => s.length === 0 || s.includes("sleep") || s.includes("energy"),
-  },
-  {
-    key: "stress",
-    label: "Стресс",
-    showIf: (s) =>
-      s.includes("stress") ||
-      s.includes("smoking") ||
-      s.includes("alcohol") ||
-      s.includes("productivity"),
-  },
-  {
-    key: "activity",
-    label: "Движение",
-    showIf: (s) => s.includes("fitness") || s.includes("energy"),
-  },
-  {
-    key: "habits",
-    label: "Контроль привычек",
-    showIf: (s) =>
-      s.includes("smoking") ||
-      s.includes("alcohol") ||
-      s.includes("discipline") ||
-      s.includes("nutrition"),
-  },
-  {
-    key: "work",
-    label: "Фокус на работе",
-    showIf: (s) => s.includes("productivity") || s.includes("focus"),
-  },
-  { key: "mood", label: "Настроение", showIf: () => true },
-];
+type ScoreKey =
+  | "energy"
+  | "sleep"
+  | "mood"
+  | "stress"
+  | "activity"
+  | "habits"
+  | "work"
+  | "nutrition"
+  | "social"
+  | "satisfaction"
+  | "control";
+
+/** Step 2 scales — strictly tied to selected goals (plot coherence). */
+const STATE_BY_WHY: Record<WhyOption, { key: ScoreKey; label: string }[]> = {
+  energy: [
+    { key: "energy", label: "Энергия днём" },
+    { key: "sleep", label: "Насколько высыпаешься" },
+  ],
+  sleep: [
+    { key: "sleep", label: "Качество сна" },
+    { key: "energy", label: "Энергия после сна" },
+  ],
+  smoking: [
+    { key: "habits", label: "Контроль над курением" },
+    { key: "stress", label: "Тяга от стресса" },
+  ],
+  fitness: [
+    { key: "activity", label: "Движение в неделю" },
+    { key: "energy", label: "Силы на тренировки" },
+  ],
+  stress: [
+    { key: "stress", label: "Уровень стресса" },
+    { key: "mood", label: "Настроение" },
+  ],
+  productivity: [
+    { key: "work", label: "Фокус на работе" },
+    { key: "energy", label: "Энергия к задачам" },
+  ],
+  discipline: [
+    { key: "habits", label: "Держу обещания себе" },
+    { key: "work", label: "Довожу дела до конца" },
+  ],
+  nutrition: [
+    { key: "nutrition", label: "Питание сейчас" },
+    { key: "habits", label: "Контроль еды" },
+  ],
+  alcohol: [
+    { key: "habits", label: "Контроль алкоголя" },
+    { key: "sleep", label: "Сон после вечеров" },
+  ],
+  relationships: [
+    { key: "social", label: "Близость с людьми" },
+    { key: "mood", label: "Настроение от общения" },
+  ],
+  confidence: [
+    { key: "satisfaction", label: "Уверенность в себе" },
+    { key: "mood", label: "Настроение" },
+  ],
+  focus: [
+    { key: "work", label: "Концентрация" },
+    { key: "stress", label: "Отвлечения / шум" },
+  ],
+  appearance: [
+    { key: "satisfaction", label: "Доволен внешним видом" },
+    { key: "activity", label: "Забота о теле" },
+    { key: "nutrition", label: "Питание" },
+  ],
+  other: [
+    { key: "satisfaction", label: "В целом доволен жизнью" },
+    { key: "control", label: "Чувство контроля" },
+  ],
+};
 
 const BLOCKER_POOL: { label: string; for: WhyOption[] | "all" }[] = [
   { label: "Мало сплю", for: ["sleep", "energy"] },
@@ -73,16 +105,17 @@ const BLOCKER_POOL: { label: string; for: WhyOption[] | "all" }[] = [
   { label: "Поздно засыпаю", for: ["sleep", "energy"] },
   { label: "Курю от стресса", for: ["smoking", "stress"] },
   { label: "Курю по привычке", for: ["smoking"] },
-  { label: "Нет движения", for: ["fitness", "energy", "stress"] },
-  { label: "Сижу целый день", for: ["fitness", "productivity"] },
+  { label: "Нет движения", for: ["fitness", "energy", "stress", "appearance"] },
+  { label: "Сижу целый день", for: ["fitness", "productivity", "appearance"] },
   { label: "Вечно бросаю на 3-й день", for: "all" },
   { label: "Нет времени", for: "all" },
   { label: "Хаос в голове", for: ["stress", "focus", "productivity", "discipline"] },
-  { label: "Ем от эмоций", for: ["nutrition", "stress"] },
+  { label: "Ем от эмоций", for: ["nutrition", "stress", "appearance"] },
   { label: "Пью по вечерам", for: ["alcohol", "stress", "sleep"] },
   { label: "Откладываю важное", for: ["discipline", "productivity", "focus"] },
   { label: "Нет поддержки вокруг", for: ["relationships", "confidence"] },
   { label: "Сравниваю себя с другими", for: ["confidence", "appearance"] },
+  { label: "Не нравится, что вижу в зеркале", for: ["appearance", "confidence"] },
 ];
 
 type Reveal = {
@@ -91,10 +124,21 @@ type Reveal = {
   tasks: string[];
 };
 
-type Scores = Record<
-  "energy" | "sleep" | "mood" | "stress" | "activity" | "habits" | "work",
-  number
->;
+type Scores = Record<ScoreKey, number>;
+
+const DEFAULT_SCORES: Scores = {
+  energy: 5,
+  sleep: 5,
+  mood: 5,
+  stress: 5,
+  activity: 4,
+  habits: 5,
+  work: 5,
+  nutrition: 5,
+  social: 5,
+  satisfaction: 5,
+  control: 5,
+};
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -117,15 +161,7 @@ export default function OnboardingPage() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scores, setScores] = useState<Scores>({
-    energy: 5,
-    sleep: 5,
-    mood: 5,
-    stress: 5,
-    activity: 4,
-    habits: 5,
-    work: 5,
-  });
+  const [scores, setScores] = useState<Scores>(DEFAULT_SCORES);
   const [blockers, setBlockers] = useState<string[]>([]);
   const [story, setStory] = useState("");
   const [goalNote, setGoalNote] = useState("");
@@ -134,10 +170,20 @@ export default function OnboardingPage() {
 
   const selected = why.selected;
 
-  const visibleState = useMemo(
-    () => STATE_FIELDS.filter((f) => f.showIf(selected)),
-    [selected],
-  );
+  const visibleState = useMemo(() => {
+    const goals = selected.length > 0 ? selected : (["other"] as WhyOption[]);
+    const seen = new Set<ScoreKey>();
+    const fields: { key: ScoreKey; label: string }[] = [];
+    for (const goal of goals) {
+      for (const field of STATE_BY_WHY[goal] ?? []) {
+        if (seen.has(field.key)) continue;
+        seen.add(field.key);
+        fields.push(field);
+        if (fields.length >= 5) return fields;
+      }
+    }
+    return fields;
+  }, [selected]);
 
   const blockerOptions = useMemo(() => {
     const labels = BLOCKER_POOL.filter(
@@ -195,10 +241,10 @@ export default function OnboardingPage() {
       activity: scores.activity,
       habits: scores.habits,
       work: scores.work,
-      nutrition: selected.includes("nutrition") ? 4 : 5,
-      social: selected.includes("relationships") ? 4 : 5,
-      control: scores.mood,
-      satisfaction: Math.round((scores.energy + scores.mood) / 2),
+      nutrition: scores.nutrition,
+      social: scores.social,
+      control: scores.control,
+      satisfaction: scores.satisfaction,
     });
     setBehavior({
       sleepHours: scores.sleep <= 3 ? 5 : scores.sleep <= 5 ? 6 : scores.sleep <= 7 ? 7 : 8,
