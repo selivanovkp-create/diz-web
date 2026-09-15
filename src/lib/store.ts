@@ -264,6 +264,13 @@ export const useFormaStore = create<Store>()(
 
         completeTask: (taskId) => {
           const date = todayISO();
+          if (typeof window !== "undefined") {
+            try {
+              window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred("success");
+            } catch {
+              /* ignore */
+            }
+          }
           set((s) => {
             const plans = s.plans.map((p) => {
               if (p.date !== date) return p;

@@ -38,3 +38,25 @@ Open [http://localhost:3000](http://localhost:3000).
 `src/lib/ai/schemas.ts` — Zod structured outputs  
 
 Replace via `setAIService(realProvider)`.
+
+## Telegram Mini App
+
+Bot: [@kostya_health_bot](https://t.me/kostya_health_bot)
+
+Production URL (GitHub Pages):
+https://selivanovkp-create.github.io/diz-web/
+
+Menu button opens FORMA as a Mini App. `/start` returns an inline WebApp button (via `scripts/telegram-poll.mjs`).
+
+```bash
+export TELEGRAM_BOT_TOKEN=...
+export APP_URL=https://selivanovkp-create.github.io/diz-web
+node scripts/telegram-poll.mjs
+```
+
+To rebuild Pages:
+
+```bash
+GITHUB_PAGES=1 npm run build
+# publish ./out to gh-pages branch
+```

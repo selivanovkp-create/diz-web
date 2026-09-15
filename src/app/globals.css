@@ -98,3 +98,17 @@ body {
 .rise-delay-3 {
   animation-delay: 0.18s;
 }
+
+/* Telegram Mini App: use safe areas + fill viewport */
+html.telegram-mini-app body {
+  overscroll-behavior: none;
+}
+
+html.telegram-mini-app .app-shell {
+  max-width: 100%;
+  min-height: 100dvh;
+}
+
+html.telegram-mini-app .safe-bottom {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
