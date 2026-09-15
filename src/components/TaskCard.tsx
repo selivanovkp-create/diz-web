@@ -51,7 +51,7 @@ export function TaskCard({
   return (
     <>
       <motion.div
-        layout
+        layout={false}
         className={cn(
           "rounded-3xl border border-line bg-bg-elevated p-4 shadow-[var(--shadow)] transition",
           done && "opacity-70",
