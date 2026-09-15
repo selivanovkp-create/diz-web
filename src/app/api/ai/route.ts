@@ -20,6 +20,7 @@ function corsHeaders(origin: string | null) {
     origin &&
     (ALLOWED_ORIGINS.includes(origin) ||
       origin.endsWith(".vercel.app") ||
+      origin.endsWith(".trycloudflare.com") ||
       origin.includes("localhost"));
   return {
     "Access-Control-Allow-Origin": allow && origin ? origin : ALLOWED_ORIGINS[0],

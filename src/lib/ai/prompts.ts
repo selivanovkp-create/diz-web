@@ -15,30 +15,35 @@ export function systemFor(action: string) {
 }
 
 export function compactContext(ctx: AIContext) {
+  const behavior = ctx.behavior ?? ({} as AIContext["behavior"]);
+  const goals = ctx.goals ?? [];
+  const checkIns = ctx.checkIns ?? [];
+  const recentTasks = ctx.recentTasks ?? [];
+  const journal = ctx.journal ?? [];
   return {
     name: ctx.name,
     why: ctx.why,
     currentState: ctx.currentState,
     behavior: {
-      sleepHours: ctx.behavior.sleepHours,
-      sleepStable: ctx.behavior.sleepStable,
-      phoneHours: ctx.behavior.phoneHours,
-      movementMinutes: ctx.behavior.movementMinutes,
-      discipline: ctx.behavior.discipline,
-      triedBefore: ctx.behavior.triedBefore,
-      whyFailed: ctx.behavior.whyFailed,
-      habitsToChange: ctx.behavior.habitsToChange,
+      sleepHours: behavior.sleepHours,
+      sleepStable: behavior.sleepStable,
+      phoneHours: behavior.phoneHours,
+      movementMinutes: behavior.movementMinutes,
+      discipline: behavior.discipline,
+      triedBefore: behavior.triedBefore,
+      whyFailed: behavior.whyFailed,
+      habitsToChange: behavior.habitsToChange,
     },
     constraints: ctx.constraints,
-    goals: ctx.goals.map((g) => ({ title: g.title, area: g.area })),
+    goals: goals.map((g) => ({ title: g.title, area: g.area })),
     motivators: ctx.motivators,
-    checkIns: ctx.checkIns.slice(-7),
-    recentTasks: ctx.recentTasks.slice(-15).map((t) => ({
+    checkIns: checkIns.slice(-7),
+    recentTasks: recentTasks.slice(-15).map((t) => ({
       title: t.title,
       status: t.status,
       category: t.category,
     })),
-    journal: ctx.journal.slice(-5).map((j) => j.body),
+    journal: journal.slice(-5).map((j) => j.body),
     completionRate14d: ctx.completionRate14d,
     momentumDays: ctx.momentumDays,
     lifeProfileSummary: ctx.lifeProfileSummary,
