@@ -78,8 +78,9 @@ export const PROMPTS = {
   "confidence": 0..1,
   "difficultyMode": "ease|hold|push",
   "motivation": string (<=120),
-  "tasks": [{ "title", "detail?", "duration"?: number (минуты, число или опусти), "difficulty":1..5, "category", "why?", "xp":5..50 }]
+  "tasks": [{ "title" (коротко, конкретно), "detail?" (как сделать, 1 фраза), "duration"?: number минут, "difficulty":1..5, "category", "why" (1 фраза: почему именно тебе сегодня и что даст), "xp":5..50 }]
 }
+why обязателен: личная польза, не общая мотивация.
 Если энергия/сон низкие — ease и меньше задач.
 Контекст: ${JSON.stringify(compactContext(ctx))}`,
 

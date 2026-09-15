@@ -24,6 +24,7 @@ export default function TodayPage() {
   const total = activeTasks.length;
   const allDone = total > 0 && done === total;
   const delta = energyDeltaLabel(checkIns);
+  const dayPct = total ? Math.round((done / total) * 100) : 0;
 
   const onRegenerate = () => {
     setErr(null);
@@ -38,16 +39,16 @@ export default function TodayPage() {
 
   return (
     <Screen>
-      <section className="rise mb-8">
+      <section className="rise mb-7">
         <p className="text-[15px] text-muted">{greeting(user?.name)}</p>
-        <h1 className="font-display mt-3 text-[2.35rem] leading-[1.08] tracking-tight">
+        <h1 className="font-display mt-3 text-[2.2rem] leading-[1.08] tracking-tight">
           {todayStateLine(todayCheck)}
         </h1>
         {delta && todayCheck ? (
           <p className="mt-3 text-[15px] text-ink-soft">{delta}</p>
         ) : null}
         {progress.momentumDays > 0 ? (
-          <p className="mt-4 text-sm text-muted">
+          <p className="mt-3 text-sm text-muted">
             {progress.momentumDays}{" "}
             {progress.momentumDays === 1 ? "день" : "дней"} подряд ты появляешься
           </p>
@@ -57,19 +58,26 @@ export default function TodayPage() {
       {!todayCheck ? (
         <Link
           href="/checkin"
-          className="rise rise-delay-1 mb-8 block rounded-2xl border border-line bg-bg-elevated px-4 py-4"
+          className="rise rise-delay-1 mb-7 block rounded-3xl border border-line bg-bg-elevated px-4 py-4"
         >
           <p className="text-[15px] font-semibold text-ink">Как ты сегодня?</p>
           <p className="mt-1 text-sm text-muted">Минута — и план подстроится.</p>
         </Link>
       ) : null}
 
-      <section className="rise rise-delay-2 mb-8">
-        <div className="mb-4 flex items-baseline justify-between gap-3">
-          <h2 className="font-display text-[1.75rem] tracking-tight">Сегодня</h2>
+      <section className="rise rise-delay-2 mb-7">
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-[1.7rem] tracking-tight">План на сегодня</h2>
+            {plan?.reason ? (
+              <p className="mt-1 max-w-[34ch] text-sm leading-relaxed text-muted">
+                {plan.reason}
+              </p>
+            ) : null}
+          </div>
           {total > 0 ? (
-            <p className="text-sm text-muted">
-              {done} из {total}
+            <p className="shrink-0 text-sm tabular-nums text-muted">
+              {done}/{total} · {dayPct}%
             </p>
           ) : null}
         </div>
@@ -77,20 +85,31 @@ export default function TodayPage() {
         {pending ? (
           <p className="py-6 text-[15px] text-muted">Собираю план…</p>
         ) : plan && activeTasks.length > 0 ? (
-          <div className="divide-y divide-line/80">
+          <div className="space-y-3">
             {activeTasks.map((t) => (
-              <TaskCard key={t.id} id={t.id} title={t.title} status={t.status} />
+              <TaskCard
+                key={t.id}
+                id={t.id}
+                title={t.title}
+                detail={t.detail}
+                why={t.why}
+                category={t.category}
+                durationMin={t.durationMin}
+                status={t.status}
+              />
             ))}
           </div>
         ) : (
-          <p className="py-4 text-[15px] text-muted">
-            Плана пока нет. Обнови — Forma соберёт шаги под тебя.
-          </p>
+          <div className="rounded-3xl border border-dashed border-line px-4 py-6">
+            <p className="text-[15px] text-muted">
+              Плана пока нет. Обнови — Forma соберёт шаги под тебя.
+            </p>
+          </div>
         )}
 
-        {plan?.motivation || plan?.reason ? (
-          <p className="mt-6 max-w-[36ch] text-[15px] leading-relaxed text-ink-soft">
-            {plan.motivation || plan.reason}
+        {plan?.motivation ? (
+          <p className="mt-5 max-w-[36ch] text-[15px] leading-relaxed text-ink-soft">
+            {plan.motivation}
           </p>
         ) : null}
 
@@ -99,7 +118,7 @@ export default function TodayPage() {
 
       <div className="rise rise-delay-3 space-y-3">
         {allDone ? (
-          <div className="rounded-2xl bg-accent-soft px-4 py-4">
+          <div className="rounded-3xl bg-accent-soft px-4 py-4">
             <p className="text-[15px] font-semibold text-accent">День закрыт</p>
             <p className="mt-1 text-sm text-ink-soft">
               Завтра Forma подстроится под то, как ты прошёл сегодня.
@@ -108,7 +127,7 @@ export default function TodayPage() {
         ) : (
           <Link href={todayCheck ? "/progress" : "/checkin"}>
             <Button className="w-full">
-              {todayCheck ? "Закрыть день" : "Отметить самочувствие"}
+              {todayCheck ? "Смотреть прогресс" : "Отметить самочувствие"}
             </Button>
           </Link>
         )}
