@@ -513,7 +513,7 @@ export const useFormaStore = create<Store>()(
       };
     },
     {
-      name: "forma-mvp-v1",
+      name: "forma-mvp-v2-ru",
       onRehydrateStorage: () => (state) => {
         state?.hydrateDone();
       },
