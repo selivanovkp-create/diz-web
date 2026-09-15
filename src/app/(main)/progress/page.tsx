@@ -3,18 +3,15 @@
 import { ProgressRing } from "@/components/ProgressRing";
 import { TrackTabs } from "@/components/TrackTabs";
 import { Button, Screen } from "@/components/ui";
-import { primaryWhy, whyLabel, whyToArea } from "@/lib/plot";
+import { computeAutoProgress } from "@/lib/auto-progress";
 import { useFormaStore } from "@/lib/store";
 import { plansForTrack } from "@/lib/tracks";
-import { planDayRates, trendPct } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 
 export default function ProgressPage() {
-  const lifeProfile = useFormaStore((s) => s.lifeProfile);
-  const progress = useFormaStore((s) => s.progress);
   const allPlans = useFormaStore((s) => s.plans);
   const whySelected = useFormaStore((s) => s.why.selected);
-  const goals = useFormaStore((s) => s.goals);
+  const currentState = useFormaStore((s) => s.currentState);
   const tracks = useFormaStore((s) => s.tracks);
   const activeTrackId = useFormaStore((s) => s.activeTrackId);
   const setActiveTrack = useFormaStore((s) => s.setActiveTrack);
@@ -22,78 +19,36 @@ export default function ProgressPage() {
   const generateWeeklyReview = useFormaStore((s) => s.generateWeeklyReview);
   const [busy, setBusy] = useState(false);
 
+  const activeTrack = useMemo(
+    () => tracks.find((t) => t.id === activeTrackId) ?? tracks[0] ?? null,
+    [tracks, activeTrackId],
+  );
+
   const plans = useMemo(
-    () => plansForTrack(allPlans, activeTrackId),
-    [allPlans, activeTrackId],
+    () => plansForTrack(allPlans, activeTrack?.id ?? activeTrackId),
+    [allPlans, activeTrack, activeTrackId],
+  );
+
+  const auto = useMemo(
+    () =>
+      computeAutoProgress(activeTrack, plans, whySelected, currentState),
+    [activeTrack, plans, whySelected, currentState],
   );
 
   const review = weeklyReviews[weeklyReviews.length - 1];
-  const why = primaryWhy(whySelected);
-  const focusLabel = whyLabel(why);
 
-  const dayRates = useMemo(() => planDayRates(plans, 7), [plans]);
-  const weekRates = useMemo(() => dayRates.map((d) => d.rate), [dayRates]);
-
-  const avg = (arr: number[]) =>
-    arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
-
-  const weekCompletion = avg(weekRates);
-  const completionTrend = useMemo(() => trendPct(weekRates), [weekRates]);
-
-  const daysActive = useMemo(() => {
-    return plans.filter((p) =>
-      p.tasks.some((t) => t.status === "done" || t.status === "skipped"),
-    ).length;
-  }, [plans]);
-
-  /** Per onboarding why: % of related tasks done in recent plans. */
-  const focusAreas = useMemo(() => {
-    const recent = plans.slice(-7);
-    const allTasks = recent.flatMap((p) => p.tasks);
-    const themes = (whySelected.length ? whySelected : [why]).slice(0, 3);
-
-    return themes.map((w) => {
-      const area = whyToArea(w);
-      const related = allTasks.filter(
-        (t) =>
-          t.category === area ||
-          t.category === w ||
-          goals.some((g) => g.area === area && g.title === whyLabel(w)),
-      );
-      // Fall back to all tasks if we can't map categories yet
-      const pool = related.length ? related : allTasks.filter((t) => t.status !== "skipped");
-      const active = pool.filter((t) => t.status !== "skipped");
-      const score = active.length
-        ? Math.round(
-            (active.filter((t) => t.status === "done").length / active.length) * 100,
-          )
-        : 0;
-      return {
-        key: w,
-        label: whyLabel(w),
-        score,
-        trend: score >= 70 ? "up" : score < 40 ? "down" : "stable",
-      };
-    });
-  }, [plans, whySelected, why, goals]);
-
-  const profileFocus = useMemo(() => {
-    if (focusAreas.length) return [];
-    const areas = lifeProfile?.areas ?? [];
-    return [lifeProfile?.priorityArea, lifeProfile?.secondaryArea]
-      .map((k) => areas.find((a) => a.key === k))
-      .filter(Boolean)
-      .slice(0, 3);
-  }, [focusAreas.length, lifeProfile]);
+  const deltaLabel =
+    auto.delta > 2
+      ? `↑ ${auto.delta} с старта`
+      : auto.delta < -2
+        ? `↓ ${Math.abs(auto.delta)} с старта`
+        : "рядом со стартом";
 
   useEffect(() => {
-    const daysWithWork = plans.filter((p) =>
-      p.tasks.some((t) => t.status === "done"),
-    ).length;
-    if (daysWithWork >= 3 && !review) {
+    if (auto.activeDays >= 3 && !review) {
       void generateWeeklyReview().catch(() => undefined);
     }
-  }, [plans, review, generateWeeklyReview]);
+  }, [auto.activeDays, review, generateWeeklyReview]);
 
   async function refreshInsight() {
     setBusy(true);
@@ -103,8 +58,6 @@ export default function ProgressPage() {
       setBusy(false);
     }
   }
-
-  const hasData = plans.some((p) => p.tasks.length > 0);
 
   return (
     <Screen>
@@ -118,106 +71,88 @@ export default function ProgressPage() {
         Прогресс
       </h1>
       <p className="rise mt-2 max-w-[34ch] text-[15px] leading-relaxed text-muted">
-        Не рейтинг самочувствия. Ответ на вопрос:{" "}
+        Считаем сами по шагам в «{auto.label}».{" "}
         <span className="text-ink-soft">
-          закрываешь чеклист по «{focusLabel}» или нет?
+          Ничего отдельно отмечать не нужно.
         </span>
       </p>
 
-      {!hasData ? (
+      {auto.empty ? (
         <p className="rise rise-delay-1 mt-10 text-[15px] text-muted">
-          Закрой 2–3 дня с задачами — здесь появятся круги и проценты.
+          Закрой первые шаги на Today — индекс темы начнёт двигаться от точки
+          онбординга.
         </p>
       ) : (
         <>
           <section className="rise rise-delay-1 mt-9 flex justify-center">
             <ProgressRing
-              value={weekCompletion}
+              value={auto.score}
               size={148}
               stroke={10}
-              label="Чеклист за неделю"
-              caption={
-                daysActive > 0
-                  ? `${daysActive} ${daysActive === 1 ? "день" : "дня"} с шагами`
-                  : "Пока мало дней"
-              }
+              label={auto.label}
+              caption={`${deltaLabel} · старт ${auto.baseline}`}
             />
           </section>
 
           <p className="rise mt-5 text-center text-sm text-muted">
-            Сколько обещанных себе шагов ты реально закрыл
+            Индекс сдвига: старт из онбординга + твои действия − паузы
           </p>
 
-          <section className="rise rise-delay-2 mt-10 grid grid-cols-2 gap-6">
+          <section className="rise rise-delay-2 mt-10 grid grid-cols-2 gap-4">
+            <div className="rounded-3xl border border-line bg-bg-elevated px-4 py-4">
+              <p className="text-sm text-muted">Шагов сделано</p>
+              <p className="font-display mt-1 text-[2rem] tabular-nums leading-none">
+                {auto.stepsDone}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-line bg-bg-elevated px-4 py-4">
+              <p className="text-sm text-muted">Минут в теме</p>
+              <p className="font-display mt-1 text-[2rem] tabular-nums leading-none">
+                {auto.minutesDone}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-line bg-bg-elevated px-4 py-4">
+              <p className="text-sm text-muted">Дней с шагом</p>
+              <p className="font-display mt-1 text-[2rem] tabular-nums leading-none">
+                {auto.activeDays}
+                <span className="text-lg text-muted">/{auto.calendarDays}</span>
+              </p>
+            </div>
+            <div className="rounded-3xl border border-line bg-bg-elevated px-4 py-4">
+              <p className="text-sm text-muted">Серия</p>
+              <p className="font-display mt-1 text-[2rem] tabular-nums leading-none">
+                {auto.streak}
+              </p>
+            </div>
+          </section>
+
+          <section className="rise rise-delay-2 mt-8 flex justify-center">
             <ProgressRing
-              value={weekCompletion}
+              value={auto.consistency}
               size={108}
               stroke={8}
-              label={focusLabel}
-              caption={
-                completionTrend === null
-                  ? "Среднее по чеклисту"
-                  : completionTrend > 0
-                    ? `↑ на ${completionTrend}% к старту недели`
-                    : completionTrend < 0
-                      ? `↓ на ${Math.abs(completionTrend)}% к старту недели`
-                      : "Без резких скачков"
-              }
-            />
-            <ProgressRing
-              value={Math.min(100, progress.momentumDays * 10)}
-              size={108}
-              stroke={8}
-              label="Серия"
-              caption={`${progress.momentumDays} ${
-                progress.momentumDays === 1 ? "день" : "дней"
-              } подряд`}
+              label="Ритм"
+              caption="% дней, когда был хотя бы один шаг"
             />
           </section>
 
-          {progress.momentumDays > 0 ? (
-            <div className="rise mt-8 rounded-3xl border border-line bg-bg-elevated px-4 py-4">
-              <p className="text-[15px] font-semibold">
-                Серия · {progress.momentumDays}{" "}
-                {progress.momentumDays === 1 ? "день" : "дней"}
-              </p>
-              <p className="mt-1 text-sm leading-relaxed text-muted">
-                Сколько дней подряд ты закрывал шаги и не обнулял ритм. Это важнее
-                идеальных цифр.
-              </p>
-            </div>
-          ) : null}
-
-          {(focusAreas.length > 0 || profileFocus.length > 0) && (
-            <section className="rise rise-delay-3 mt-10">
+          {auto.series.length >= 2 ? (
+            <section className="rise mt-10">
               <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
-                Темы из онбординга
+                Индекс по дням
               </h2>
-              <p className="mt-2 max-w-[34ch] text-sm text-muted">
-                Доля закрытых шагов по тому, что ты выбрал на старте.
-              </p>
-              <div className="mt-6 grid grid-cols-3 gap-2">
-                {(focusAreas.length ? focusAreas : profileFocus).map((a) =>
-                  a ? (
-                    <ProgressRing
-                      key={String(a.key)}
-                      value={a.score}
-                      size={88}
-                      stroke={6}
-                      label={a.label}
-                      caption={
-                        a.trend === "up"
-                          ? "растёт"
-                          : a.trend === "down"
-                            ? "проседает"
-                            : "ровно"
-                      }
-                    />
-                  ) : null,
-                )}
+              <div className="mt-4 flex h-24 items-end gap-1.5">
+                {auto.series.map((d) => (
+                  <div
+                    key={d.date}
+                    className="flex-1 rounded-t-md bg-accent/65"
+                    style={{ height: `${Math.max(8, d.score)}%` }}
+                    title={`${d.date}: ${d.score}`}
+                  />
+                ))}
               </div>
             </section>
-          )}
+          ) : null}
 
           <section className="rise mt-12">
             <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
@@ -229,34 +164,11 @@ export default function ProgressPage() {
               </p>
             ) : (
               <p className="mt-4 max-w-[34ch] text-[15px] leading-relaxed text-muted">
-                Ещё рано для сильного вывода. Закрой несколько дней чеклиста —
-                появится ясный паттерн по «{focusLabel}».
+                Индекс «{auto.label}»: {auto.score} при старте {auto.baseline}.
+                Чем стабильнее шаги, тем выше сдвиг — без отдельных оценок.
               </p>
             )}
-            {review?.needsAttention ? (
-              <p className="mt-4 max-w-[34ch] text-[15px] text-ink-soft">
-                Слабое место сейчас: {review.needsAttention}
-              </p>
-            ) : null}
           </section>
-
-          {weekRates.length >= 2 ? (
-            <section className="rise mt-10">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
-                Чеклист по дням
-              </h2>
-              <div className="mt-4 flex h-24 items-end gap-2">
-                {weekRates.map((v, i) => (
-                  <div
-                    key={dayRates[i]?.date ?? i}
-                    className="flex-1 rounded-t-md bg-accent/65"
-                    style={{ height: `${Math.max(10, v)}%` }}
-                    title={`${v}%`}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
         </>
       )}
 
