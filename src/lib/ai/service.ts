@@ -59,7 +59,7 @@ export function buildAIContext(state: FormaState): AIContext {
   const completionRate14d = tasks.length ? done / tasks.length : 0.5;
 
   return {
-    name: state.user?.name ?? "there",
+    name: state.user?.name ?? "друг",
     why: state.why,
     currentState: state.currentState,
     behavior: state.behavior,

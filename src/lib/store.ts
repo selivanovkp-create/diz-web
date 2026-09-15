@@ -89,7 +89,7 @@ type Store = FormaState & {
 const initialProgress = {
   xp: 0,
   level: 1,
-  levelTitle: "Starting Point",
+  levelTitle: "Точка старта",
   momentumDays: 0,
   totalTasks: 0,
   completedTasks: 0,
@@ -97,14 +97,14 @@ const initialProgress = {
 
 function areaLabels(key: LifeAreaKey) {
   const map: Record<LifeAreaKey, string> = {
-    energy: "Energy",
-    sleep: "Sleep",
-    physical: "Movement",
-    mind: "Mind",
-    productivity: "Productivity",
-    habits: "Habits",
-    social: "Social",
-    lifestyle: "Lifestyle",
+    energy: "Энергия",
+    sleep: "Сон",
+    physical: "Движение",
+    mind: "Голова",
+    productivity: "Продуктивность",
+    habits: "Привычки",
+    social: "Социум",
+    lifestyle: "Образ жизни",
   };
   return map[key];
 }

@@ -16,9 +16,9 @@ const instrument = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "FORMA — become better, systematically",
+  title: "FORMA — становись лучше системно",
   description:
-    "Personal improvement system: diagnose → prioritize → daily actions → adapt.",
+    "Система личного развития: диагностика → приоритеты → ежедневные действия → адаптация.",
   applicationName: "FORMA",
   appleWebApp: {
     capable: true,

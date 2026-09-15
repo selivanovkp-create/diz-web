@@ -5,6 +5,17 @@ import { canUseCoach } from "@/lib/subscription";
 import { useFormaStore } from "@/lib/store";
 import { useEffect, useRef, useState } from "react";
 
+const AREA_RU: Record<string, string> = {
+  energy: "энергия",
+  sleep: "сон",
+  physical: "движение",
+  mind: "голова",
+  productivity: "продуктивность",
+  habits: "привычки",
+  social: "социум",
+  lifestyle: "образ жизни",
+};
+
 export default function CoachPage() {
   const coach = useFormaStore((s) => s.coach);
   const sendCoachMessage = useFormaStore((s) => s.sendCoachMessage);
@@ -29,18 +40,22 @@ export default function CoachPage() {
   }
 
   const allowed = canUseCoach(subscription);
+  const priorityLabel = lifeProfile
+    ? AREA_RU[lifeProfile.priorityArea] ?? lifeProfile.priorityArea
+    : null;
 
   return (
     <Screen className="flex min-h-dvh flex-col">
       <SectionTitle
-        eyebrow="Coach"
-        title="Context-aware"
-        subtitle="Знает твой профиль, задачи и check-in. Не ставит диагнозы."
+        eyebrow="Коуч"
+        title="С учётом тебя"
+        subtitle="Знает профиль, задачи и чек-ин. Не ставит диагнозы."
       />
 
       {lifeProfile ? (
         <div className="card mb-4 p-3 text-xs text-muted">
-          Priority now: <span className="font-semibold text-ink">{lifeProfile.priorityArea}</span>
+          Сейчас приоритет:{" "}
+          <span className="font-semibold text-ink">{priorityLabel}</span>
           {" · "}
           {lifeProfile.summary}
         </div>
@@ -69,12 +84,12 @@ export default function CoachPage() {
 
       {!allowed ? (
         <div className="card mt-4 p-4">
-          <p className="text-sm font-semibold">Free limit reached</p>
+          <p className="text-sm font-semibold">Лимит бесплатного тарифа</p>
           <p className="mt-1 text-xs text-muted">
-            Premium = постоянная персонализация, не просто «больше кнопок».
+            Premium — постоянная персонализация, не просто «больше кнопок».
           </p>
           <Button className="mt-3 w-full" onClick={unlockPremium}>
-            Unlock Premium (mock)
+            Включить Premium (демо)
           </Button>
         </div>
       ) : (
@@ -85,17 +100,17 @@ export default function CoachPage() {
             onKeyDown={(e) => {
               if (e.key === "Enter") void send();
             }}
-            placeholder="Ask anything…"
+            placeholder="Спроси что угодно…"
             className="flex-1 rounded-2xl border border-line bg-bg-elevated px-3 py-3 text-sm outline-none focus:border-accent"
           />
           <Button disabled={busy} onClick={() => void send()}>
-            Send
+            Отправить
           </Button>
         </div>
       )}
       {subscription.plan === "free" ? (
         <p className="mt-1 text-center text-[11px] text-muted">
-          Coach {subscription.coachMessagesUsed}/{subscription.coachMessagesLimit}
+          Коуч {subscription.coachMessagesUsed}/{subscription.coachMessagesLimit}
         </p>
       ) : null}
     </Screen>

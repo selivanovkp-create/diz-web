@@ -10,7 +10,7 @@ export function uid(prefix = "id") {
 
 export function greeting(name?: string) {
   const h = new Date().getHours();
-  const hi = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  const hi = h < 12 ? "Доброе утро" : h < 18 ? "Добрый день" : "Добрый вечер";
   return name ? `${hi}, ${name}.` : `${hi}.`;
 }
 

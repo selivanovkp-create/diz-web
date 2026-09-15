@@ -25,28 +25,34 @@ export default function ProgressPage() {
 
   return (
     <Screen>
-      <SectionTitle eyebrow="Progress" title="State over time" subtitle="Indicators from behavior + self-report. Not medical scores." />
+      <SectionTitle
+        eyebrow="Прогресс"
+        title="Состояние во времени"
+        subtitle="Показатели из поведения и самооценки. Не медицинские оценки."
+      />
 
       <div className="card rise mb-4 p-4">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Level</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+              Уровень
+            </p>
             <p className="font-display text-3xl">{progress.level}</p>
             <p className="text-sm text-muted">{progress.levelTitle}</p>
           </div>
           <div className="text-right">
             <p className="text-sm font-semibold">{progress.xp} XP</p>
-            <p className="text-xs text-muted">Momentum {progress.momentumDays}d</p>
+            <p className="text-xs text-muted">Momentum {progress.momentumDays} дн.</p>
           </div>
         </div>
         <div className="mt-4">
           <ScoreBar value={completion * 100} />
-          <p className="mt-2 text-xs text-muted">Week completion {pct(completion * 100)}</p>
+          <p className="mt-2 text-xs text-muted">Выполнение за неделю {pct(completion * 100)}</p>
         </div>
       </div>
 
       <div className="rise rise-delay-1 mb-4">
-        <h2 className="mb-3 text-sm font-semibold">Life areas</h2>
+        <h2 className="mb-3 text-sm font-semibold">Сферы жизни</h2>
         <div className="space-y-3">
           {lifeProfile?.areas
             .slice()
@@ -75,7 +81,7 @@ export default function ProgressPage() {
       {weekEnergy.length > 0 ? (
         <div className="card rise rise-delay-2 mb-4 p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-            Energy · last check-ins
+            Энергия · последние чек-ины
           </p>
           <div className="mt-3 flex h-24 items-end gap-1.5">
             {weekEnergy.map((v, i) => (
@@ -87,9 +93,9 @@ export default function ProgressPage() {
 
       <div className="rise rise-delay-3 mb-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Achievements</h2>
+          <h2 className="text-sm font-semibold">Достижения</h2>
           <Link href="/weekly" className="text-xs text-accent">
-            Weekly review
+            Недельный обзор
           </Link>
         </div>
         {achievements.length === 0 ? (

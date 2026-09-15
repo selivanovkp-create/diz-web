@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils";
 import { CircleUserRound, MessageSquareText, SunMedium, ChartNoAxesCombined } from "lucide-react";
 
 const items = [
-  { href: "/today", label: "Today", icon: SunMedium },
-  { href: "/progress", label: "Progress", icon: ChartNoAxesCombined },
-  { href: "/coach", label: "Coach", icon: MessageSquareText },
-  { href: "/profile", label: "Profile", icon: CircleUserRound },
+  { href: "/today", label: "Сегодня", icon: SunMedium },
+  { href: "/progress", label: "Прогресс", icon: ChartNoAxesCombined },
+  { href: "/coach", label: "Коуч", icon: MessageSquareText },
+  { href: "/profile", label: "Профиль", icon: CircleUserRound },
 ];
 
 export function BottomNav() {

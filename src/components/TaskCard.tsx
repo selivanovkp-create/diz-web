@@ -37,7 +37,7 @@ export function TaskCard({
       <div className="flex items-start gap-3">
         <button
           type="button"
-          aria-label="Complete task"
+          aria-label="Выполнить задачу"
           disabled={done || skipped}
           onClick={() => completeTask(id)}
           className={cn(
@@ -63,7 +63,7 @@ export function TaskCard({
                 onClick={() => skipTask(id)}
                 className="text-xs text-muted underline-offset-2 hover:underline"
               >
-                Skip
+                Пропустить
               </button>
             ) : null}
           </div>

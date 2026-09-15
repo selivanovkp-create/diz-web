@@ -16,13 +16,19 @@ export default function ProfilePage() {
   const goals = useFormaStore((s) => s.goals);
   const [note, setNote] = useState("");
 
+  const planLabel = subscription.plan === "premium" ? "Premium" : "Бесплатный";
+
   return (
     <Screen>
-      <SectionTitle eyebrow="Profile" title={user?.name ?? "You"} subtitle="Personal State · not a medical file." />
+      <SectionTitle
+        eyebrow="Профиль"
+        title={user?.name ?? "Ты"}
+        subtitle="Personal State · не медицинская карта."
+      />
 
       <div className="card rise mb-4 p-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-          Strategy
+          Стратегия
         </p>
         <ul className="mt-2 space-y-1.5">
           {lifeProfile?.strategy.map((s) => (
@@ -34,7 +40,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="card rise rise-delay-1 mb-4 p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Goals</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Цели</p>
         {goals.length === 0 ? (
           <p className="mt-2 text-sm text-muted">Пока пусто.</p>
         ) : (
@@ -50,7 +56,7 @@ export default function ProfilePage() {
 
       <div className="card rise rise-delay-2 mb-4 p-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-          Journal
+          Дневник
         </p>
         <textarea
           value={note}
@@ -68,7 +74,7 @@ export default function ProfilePage() {
             setNote("");
           }}
         >
-          Save note
+          Сохранить заметку
         </Button>
         <div className="mt-3 space-y-2">
           {journal
@@ -85,19 +91,19 @@ export default function ProfilePage() {
 
       <div className="card rise rise-delay-3 mb-4 p-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-          Subscription
+          Подписка
         </p>
-        <p className="mt-1 text-sm font-semibold capitalize">{subscription.plan}</p>
+        <p className="mt-1 text-sm font-semibold">{planLabel}</p>
         <p className="mt-1 text-xs text-muted">
-          Платишь за постоянную персонализацию, не за tracker.
+          Платишь за постоянную персонализацию, не за трекер.
         </p>
         {subscription.plan === "free" ? (
           <Button className="mt-3 w-full" onClick={unlockPremium}>
-            Start Premium (mock)
+            Включить Premium (демо)
           </Button>
         ) : (
           <Button variant="ghost" className="mt-3 w-full" onClick={cancelPremium}>
-            Cancel Premium
+            Отменить Premium
           </Button>
         )}
       </div>
@@ -112,7 +118,7 @@ export default function ProfilePage() {
           }
         }}
       >
-        Delete account data
+        Удалить данные аккаунта
       </Button>
     </Screen>
   );

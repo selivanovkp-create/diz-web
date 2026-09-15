@@ -60,7 +60,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
       const tgUser = wa.initDataUnsafe?.user;
       if (tgUser?.first_name && hydrated) {
         const full = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ");
-        if (!user?.name || user.name === "Konstantin") {
+        if (!user?.name || user.name === "Konstantin" || user.name === "Константин") {
           setName(full);
         }
       }

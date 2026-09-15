@@ -32,22 +32,22 @@ export default function TodayPage() {
         <div className="mt-4 flex items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-              Energy
+              Энергия
             </p>
             <p className="mt-1 font-display text-5xl leading-none tabular-nums">{energy}</p>
             {energyDelta !== null ? (
               <p className="mt-2 text-xs text-muted">
                 {energyDelta === 0
-                  ? "Same as yesterday"
-                  : `${energyDelta > 0 ? "↑" : "↓"} ${Math.abs(energyDelta)} vs yesterday`}
+                  ? "Как вчера"
+                  : `${energyDelta > 0 ? "↑" : "↓"} ${Math.abs(energyDelta)} к вчера`}
               </p>
             ) : (
-              <p className="mt-2 text-xs text-muted">From your current profile</p>
+              <p className="mt-2 text-xs text-muted">Из текущего профиля</p>
             )}
           </div>
           <div className="w-28 text-right">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-              Level {progress.level}
+              Уровень {progress.level}
             </p>
             <p className="mt-1 text-sm font-medium">{progress.levelTitle}</p>
             <p className="mt-1 text-xs text-muted">{progress.xp} XP</p>
@@ -61,29 +61,29 @@ export default function TodayPage() {
       {!todayCheck ? (
         <Link href="/checkin" className="card rise rise-delay-1 mb-4 block p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-            Check-in
+            Чек-ин
           </p>
-          <p className="mt-1 text-base font-semibold">60 seconds. Then the plan adapts.</p>
+          <p className="mt-1 text-base font-semibold">60 секунд. Потом план подстроится.</p>
         </Link>
       ) : null}
 
       <section className="rise rise-delay-2 mb-5">
         <div className="mb-3 flex items-end justify-between">
-          <h2 className="font-display text-2xl">Today</h2>
+          <h2 className="font-display text-2xl">Сегодня</h2>
           <p className="text-sm text-muted">
-            {done} of {total}
+            {done} из {total}
           </p>
         </div>
         {plan ? (
           <div className="card mb-4 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-              Why today
+              Почему сегодня
             </p>
             <p className="mt-2 text-sm leading-relaxed text-ink-soft">{plan.reason}</p>
             <p className="mt-3 text-sm text-accent">{plan.motivation}</p>
           </div>
         ) : (
-          <div className="card p-4 text-sm text-muted">Building today’s plan…</div>
+          <div className="card p-4 text-sm text-muted">Собираю план на сегодня…</div>
         )}
         <div className="space-y-3">
           {plan?.tasks.map((t) => (
@@ -95,22 +95,22 @@ export default function TodayPage() {
       <div className="rise rise-delay-3 grid grid-cols-2 gap-3">
         <Link href="/weekly" className="card p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-            Review
+            Обзор
           </p>
-          <p className="mt-1 text-sm font-semibold">Your week</p>
+          <p className="mt-1 text-sm font-semibold">Твоя неделя</p>
         </Link>
         <div className="card p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
             Momentum
           </p>
-          <p className="mt-1 text-sm font-semibold">{progress.momentumDays} days</p>
+          <p className="mt-1 text-sm font-semibold">{progress.momentumDays} дн.</p>
         </div>
       </div>
 
       <div className="mt-4">
         <Link href="/checkin">
           <Button variant="soft" className="w-full">
-            Update check-in
+            Обновить чек-ин
           </Button>
         </Link>
       </div>

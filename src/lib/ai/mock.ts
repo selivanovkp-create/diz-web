@@ -15,14 +15,14 @@ import { detectSafetyRisk, safetyCoachReply } from "@/lib/ai/safety";
 import type { CheckInData, LifeAreaKey } from "@/lib/types";
 
 const AREA_LABELS: Record<LifeAreaKey, string> = {
-  energy: "Energy",
-  sleep: "Sleep",
-  physical: "Movement",
-  mind: "Mind",
-  productivity: "Productivity",
-  habits: "Habits",
-  social: "Social",
-  lifestyle: "Lifestyle",
+  energy: "Энергия",
+  sleep: "Сон",
+  physical: "Движение",
+  mind: "Голова",
+  productivity: "Продуктивность",
+  habits: "Привычки",
+  social: "Социум",
+  lifestyle: "Образ жизни",
 };
 
 function clamp(n: number, min = 0, max = 100) {
@@ -462,14 +462,14 @@ export class MockAIService implements AIService {
 
     if (/устал|tired|энерг|energy|сил/.test(lower)) {
       reply = last
-        ? `По твоим check-in энергия около ${last.energy}/10, сон ${last.sleep}/10. Обычно в такой связке сначала чинят сон и убирают лишние задачи, а не добавляют мотивацию. Сегодня достаточно 1–2 лёгких действий.`
+        ? `По твоим чек-инам энергия около ${last.energy}/10, сон ${last.sleep}/10. Обычно в такой связке сначала чинят сон и убирают лишние задачи, а не добавляют мотивацию. Сегодня достаточно 1–2 лёгких действий.`
         : `Усталость чаще лечится режимом, а не силой воли. Начнём с сна и одного короткого действия — без героизма.`;
     } else if (/кур|smoke|никотин|сорвал/.test(lower)) {
       reply = `Срыв — данные, не приговор. Не надо «бросить навсегда» сегодня. Рабочая рамка: одно окно без никотина (например, первый час после подъёма) и фиксация факта без самобичевания.`;
     } else if (/прогресс|progress|лучше/.test(lower)) {
       reply = `Коротко: ${Math.round(recentCompletion(ctx) * 100)}% задач за последнее время, momentum ${ctx.momentumDays}. Это и есть прогресс — не идеальная жизнь, а повторяемость.`;
     } else if (/сегодня|today|делать/.test(lower)) {
-      reply = `Сегодня приоритет — ${AREA_LABELS[priority]}. Открой Today и закрой минимум. Если сил мало — оставь одну задачу.`;
+      reply = `Сегодня приоритет — ${AREA_LABELS[priority]}. Открой «Сегодня» и закрой минимум. Если сил мало — оставь одну задачу.`;
     } else if (/не хочу|нет сил|lazy|апат/.test(lower)) {
       reply = `Ок. Тогда план на минимум: одно действие меньше 5 минут. Не «начать новую жизнь» — просто не сделать день нулевым.`;
     } else {
@@ -494,10 +494,10 @@ export class MockAIService implements AIService {
     const worst = sorted[0];
     return WeeklyReviewSchema.parse({
       completionRate: rate,
-      biggestWin: best ? AREA_LABELS[best.key] : "Consistency",
-      needsAttention: worst ? AREA_LABELS[worst.key] : "Sleep",
+      biggestWin: best ? AREA_LABELS[best.key] : "Стабильность",
+      needsAttention: worst ? AREA_LABELS[worst.key] : "Сон",
       nextFocus: worst
-        ? `Чуть усилить ${AREA_LABELS[worst.key].toLowerCase()} одним маленьким правилом`
+        ? `Чуть усилить «${AREA_LABELS[worst.key].toLowerCase()}» одним маленьким правилом`
         : "Держать ритм",
       aiNote:
         rate >= 0.7

@@ -26,10 +26,10 @@ const WHY: { id: WhyOption; label: string }[] = [
 
 const MOTIVATORS: { id: Motivator; label: string }[] = [
   { id: "visible_progress", label: "Видимый прогресс" },
-  { id: "streaks", label: "Momentum / streaks" },
-  { id: "achievements", label: "Achievements" },
+  { id: "streaks", label: "Серии / momentum" },
+  { id: "achievements", label: "Достижения" },
   { id: "statistics", label: "Статистика" },
-  { id: "ai_feedback", label: "AI feedback" },
+  { id: "ai_feedback", label: "Обратная связь AI" },
   { id: "narrative", label: "История изменений" },
   { id: "competition", label: "Соревнование" },
   { id: "rewards", label: "Награды" },
@@ -90,12 +90,12 @@ export default function OnboardingPage() {
               FORMA
             </p>
             <h1 className="font-display mt-4 text-[2.6rem] leading-[1.05] tracking-tight">
-              Become better,
+              Становись лучше —
               <br />
-              systematically.
+              системно.
             </h1>
             <p className="mt-4 max-w-[32ch] text-sm leading-relaxed text-muted">
-              Не habit tracker. Система: понять, что мешает → выбрать приоритет →
+              Не трекер привычек. Система: понять, что мешает → выбрать приоритет →
               делать маленькие шаги → адаптироваться.
             </p>
           </div>
@@ -105,14 +105,14 @@ export default function OnboardingPage() {
               <input
                 value={user?.name ?? ""}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Konstantin"
+                placeholder="Константин"
                 className="w-full rounded-2xl border border-line bg-bg-elevated px-4 py-3 text-base outline-none focus:border-accent"
               />
             </label>
             <Button
               className="w-full"
               onClick={() => {
-                if (!user?.name) setName("Konstantin");
+                if (!user?.name) setName("Константин");
                 startOnboarding();
               }}
             >
@@ -125,7 +125,7 @@ export default function OnboardingPage() {
       {step === 1 ? (
         <div className="rise">
           <SectionTitle
-            eyebrow="Stage 1"
+            eyebrow="Этап 1"
             title="Что хочешь изменить?"
             subtitle="Можно несколько. Потом сузим."
           />
@@ -170,7 +170,7 @@ export default function OnboardingPage() {
       {step === 2 ? (
         <div className="rise">
           <SectionTitle
-            eyebrow="Stage 2"
+            eyebrow="Этап 2"
             title="Как сейчас"
             subtitle="Честно. Это не оценка, а точка отсчёта."
           />
@@ -211,7 +211,7 @@ export default function OnboardingPage() {
 
       {step === 3 ? (
         <div className="rise">
-          <SectionTitle eyebrow="Stage 3" title="Поведение" subtitle="Как устроена обычная неделя." />
+          <SectionTitle eyebrow="Этап 3" title="Поведение" subtitle="Как устроена обычная неделя." />
           <div className="card space-y-5 p-4">
             <SliderField
               label={`Сон, часов: ${behavior.sleepHours}`}
@@ -277,7 +277,7 @@ export default function OnboardingPage() {
       {step === 4 ? (
         <div className="rise">
           <SectionTitle
-            eyebrow="Stage 4"
+            eyebrow="Этап 4"
             title="Ограничения"
             subtitle="Реализм важнее амбиций."
           />
@@ -340,7 +340,7 @@ export default function OnboardingPage() {
       {step === 5 ? (
         <div className="rise">
           <SectionTitle
-            eyebrow="Stage 5"
+            eyebrow="Этап 5"
             title="Цели"
             subtitle="Не обязательно менять всё сразу. Выберем то, что даст эффект сейчас."
           />
@@ -368,7 +368,7 @@ export default function OnboardingPage() {
                   setGoalText("");
                 }}
               >
-                Add
+                Добавить
               </Button>
             </div>
             <ul className="mt-4 space-y-2">
