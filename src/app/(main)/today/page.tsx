@@ -23,6 +23,7 @@ export default function TodayPage() {
   const tracks = useFormaStore((s) => s.tracks);
   const activeTrackId = useFormaStore((s) => s.activeTrackId);
   const setActiveTrack = useFormaStore((s) => s.setActiveTrack);
+  const removeTrack = useFormaStore((s) => s.removeTrack);
   const [pending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
 
@@ -71,6 +72,12 @@ export default function TodayPage() {
         tracks={tracks}
         activeTrackId={activeTrackId}
         onSelect={setActiveTrack}
+        onDelete={(id) => {
+          removeTrack(id);
+          if (useFormaStore.getState().tracks.length === 0) {
+            window.location.href = "/onboarding";
+          }
+        }}
       />
 
       <section className="rise mb-7">

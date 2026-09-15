@@ -1,9 +1,11 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Button, Screen } from "@/components/ui";
 import { useFormaStore } from "@/lib/store";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { FocusTrack } from "@/lib/types";
 
 export default function ProfilePage() {
   const user = useFormaStore((s) => s.user);
@@ -18,6 +20,8 @@ export default function ProfilePage() {
   const cancelPremium = useFormaStore((s) => s.cancelPremium);
   const resetAll = useFormaStore((s) => s.resetAll);
   const [aiStatus, setAiStatus] = useState("…");
+  const [pendingDelete, setPendingDelete] = useState<FocusTrack | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
 
   useEffect(() => {
     const base = (process.env.NEXT_PUBLIC_AI_API_BASE || "").replace(/\/$/, "");
@@ -71,17 +75,13 @@ export default function ProfilePage() {
                         "Свой чеклист и прогресс"}
                     </p>
                   </button>
-                  {tracks.length > 1 ? (
-                    <button
-                      type="button"
-                      className="shrink-0 text-xs text-muted underline-offset-2 hover:underline"
-                      onClick={() => {
-                        if (confirm(`Убрать тему «${t.label}»?`)) removeTrack(t.id);
-                      }}
-                    >
-                      Убрать
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs text-danger underline-offset-2 hover:underline"
+                    onClick={() => setPendingDelete(t)}
+                  >
+                    Удалить
+                  </button>
                 </li>
               ))}
             </ul>
@@ -127,19 +127,46 @@ export default function ProfilePage() {
           <p className="mt-2 text-[15px] text-ink-soft">AI: {aiStatus}</p>
         </div>
 
-        <Button
-          variant="danger"
-          className="w-full"
-          onClick={() => {
-            if (confirm("Удалить все локальные данные и начать заново?")) {
-              resetAll();
-              window.location.href = "/onboarding";
-            }
-          }}
-        >
+        <Button variant="danger" className="w-full" onClick={() => setResetOpen(true)}>
           Сбросить данные
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={`Удалить «${pendingDelete?.label ?? "тему"}»?`}
+        body={
+          tracks.length <= 1
+            ? "Это последняя тема. Пропадут план и прогресс. Дальше — новый онбординг."
+            : "План и прогресс по этой теме удалятся. Остальные темы останутся."
+        }
+        confirmLabel="Удалить"
+        cancelLabel="Оставить"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          const id = pendingDelete.id;
+          setPendingDelete(null);
+          removeTrack(id);
+          if (useFormaStore.getState().tracks.length === 0) {
+            window.location.href = "/onboarding";
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={resetOpen}
+        title="Сбросить все данные?"
+        body="Удалятся темы, планы и прогресс. Действие необратимо."
+        confirmLabel="Сбросить"
+        cancelLabel="Отмена"
+        onCancel={() => setResetOpen(false)}
+        onConfirm={() => {
+          setResetOpen(false);
+          resetAll();
+          window.location.href = "/onboarding";
+        }}
+      />
     </Screen>
   );
 }

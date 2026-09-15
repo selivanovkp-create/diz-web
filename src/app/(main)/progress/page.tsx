@@ -15,6 +15,7 @@ export default function ProgressPage() {
   const tracks = useFormaStore((s) => s.tracks);
   const activeTrackId = useFormaStore((s) => s.activeTrackId);
   const setActiveTrack = useFormaStore((s) => s.setActiveTrack);
+  const removeTrack = useFormaStore((s) => s.removeTrack);
   const weeklyReviews = useFormaStore((s) => s.weeklyReviews);
   const generateWeeklyReview = useFormaStore((s) => s.generateWeeklyReview);
   const [busy, setBusy] = useState(false);
@@ -65,6 +66,12 @@ export default function ProgressPage() {
         tracks={tracks}
         activeTrackId={activeTrackId}
         onSelect={setActiveTrack}
+        onDelete={(id) => {
+          removeTrack(id);
+          if (useFormaStore.getState().tracks.length === 0) {
+            window.location.href = "/onboarding";
+          }
+        }}
       />
 
       <h1 className="font-display rise text-[2.2rem] leading-tight tracking-tight">
