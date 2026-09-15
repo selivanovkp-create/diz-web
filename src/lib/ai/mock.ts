@@ -57,15 +57,21 @@ function whyToAreas(ctx: AIContext): LifeAreaKey[] {
 function scoreAreas(ctx: AIContext): InitialAssessment["areas"] {
   const s = ctx.currentState;
   const b = ctx.behavior;
+  // Onboarding sliders are 1–10 → normalize to 0–100
+  const n = (v: number) => clamp(v * 10);
   const base: Record<LifeAreaKey, number> = {
-    energy: s.energy,
-    sleep: clamp(s.sleep * 0.7 + (b.sleepHours >= 7 && b.sleepHours <= 8.5 ? 20 : 5) + b.sleepStable * 0.1),
-    physical: clamp(s.activity * 0.6 + Math.min(b.movementMinutes, 60)),
-    mind: clamp(100 - s.stress * 0.55 + s.mood * 0.35),
-    productivity: clamp(s.work * 0.5 + (10 - Math.min(b.phoneHours, 10)) * 4 + b.discipline * 0.2),
-    habits: s.habits,
-    social: s.social,
-    lifestyle: clamp((s.nutrition + s.satisfaction + s.control) / 3),
+    energy: n(s.energy),
+    sleep: clamp(
+      s.sleep * 7 +
+        (b.sleepHours >= 7 && b.sleepHours <= 8.5 ? 20 : 5) +
+        b.sleepStable * 1.5,
+    ),
+    physical: clamp(s.activity * 6 + Math.min(b.movementMinutes, 40)),
+    mind: clamp(100 - s.stress * 5.5 + s.mood * 3.5),
+    productivity: clamp(s.work * 5 + (10 - Math.min(b.phoneHours, 10)) * 4 + b.discipline * 2),
+    habits: n(s.habits),
+    social: n(s.social),
+    lifestyle: clamp(((s.nutrition + s.satisfaction + s.control) / 3) * 10),
   };
 
   const focus = whyToAreas(ctx);
