@@ -257,6 +257,9 @@ export type PlotTask = {
   category: string;
   why: string;
   xp: number;
+  steps?: string[];
+  doneWhen?: string;
+  tip?: string;
 };
 
 /** Tasks keyed by WhyOption — never collapse smoking/alcohol/discipline into one nicotine pack. */

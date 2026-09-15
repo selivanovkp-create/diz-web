@@ -91,8 +91,9 @@ export const PROMPTS = {
   "confidence": 0..1,
   "difficultyMode": "ease|hold|push",
   "motivation": string (<=120),
-  "tasks": [{ "title", "detail?", "duration"?, "difficulty":1..5, "category", "why" (личная польза по теме why), "xp":5..50 }]
+  "tasks": [{ "title", "detail?", "duration"?, "difficulty":1..5, "category", "why" (личная польза по теме why), "steps": string[2..5] (конкретные шаги «как сделать»), "doneWhen" (когда считать выполненным), "tip" (один совет), "xp":5..50 }]
 }
+why/steps/doneWhen обязательны: юзер должен понять задачу без догадок.
 Если ресурс/энергия низкие — ease и меньше задач, НО задачи всё равно про тему why.
 Не предлагай сон/курение/энергию, если это не в why.selected.
 Контекст: ${JSON.stringify(compactContext(ctx))}`,

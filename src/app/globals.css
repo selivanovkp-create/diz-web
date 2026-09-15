@@ -71,6 +71,10 @@ body {
   padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
 }
 
+.safe-sheet-actions {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+
 @keyframes rise {
   from {
     opacity: 0;

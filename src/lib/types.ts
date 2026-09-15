@@ -123,6 +123,10 @@ export interface TaskItem {
   difficulty: number;
   durationMin?: number;
   why?: string;
+  /** Step-by-step how-to for the detail sheet */
+  steps?: string[];
+  doneWhen?: string;
+  tip?: string;
   xp: number;
   status: "pending" | "done" | "skipped";
   date: string;

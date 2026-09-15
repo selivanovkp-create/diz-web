@@ -107,6 +107,9 @@ export default function TodayPage() {
                 category={t.category}
                 durationMin={t.durationMin}
                 status={t.status}
+                steps={t.steps}
+                doneWhen={t.doneWhen}
+                tip={t.tip}
               />
             ))}
           </div>

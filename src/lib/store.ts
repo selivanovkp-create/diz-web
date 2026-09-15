@@ -224,8 +224,11 @@ export const useFormaStore = create<Store>()(
             difficulty: t.difficulty ?? 2,
             durationMin: t.duration,
             why: t.why,
+            steps: t.steps,
+            doneWhen: t.doneWhen,
+            tip: t.tip,
             xp: t.xp ?? 10,
-            status: "pending",
+            status: "pending" as const,
             date,
           }));
           const lifeProfile = {
@@ -295,8 +298,11 @@ export const useFormaStore = create<Store>()(
             difficulty: t.difficulty ?? 2,
             durationMin: t.duration,
             why: t.why,
+            steps: t.steps,
+            doneWhen: t.doneWhen,
+            tip: t.tip,
             xp: t.xp ?? 10,
-            status: "pending",
+            status: "pending" as const,
             date,
           }));
           tasks.forEach(() => track("task_created", { date, aiSource }));

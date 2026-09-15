@@ -42,6 +42,9 @@ export const GeneratedTaskSchema = z.object({
   difficulty: looseInt({ min: 1, max: 5, fallback: 2 }) as z.ZodType<number>,
   category: z.string().min(1).catch("lifestyle"),
   why: z.string().max(400).optional(),
+  steps: z.array(z.string().min(2).max(200)).min(2).max(6).optional(),
+  doneWhen: z.string().max(240).optional(),
+  tip: z.string().max(240).optional(),
   xp: looseInt({ min: 5, max: 50, fallback: 10 }) as z.ZodType<number>,
 });
 
