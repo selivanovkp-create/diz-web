@@ -2,7 +2,7 @@
 
 import { Button, Screen, SectionTitle } from "@/components/ui";
 import { useFormaStore } from "@/lib/store";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
   const user = useFormaStore((s) => s.user);
@@ -15,8 +15,23 @@ export default function ProfilePage() {
   const resetAll = useFormaStore((s) => s.resetAll);
   const goals = useFormaStore((s) => s.goals);
   const [note, setNote] = useState("");
+  const [aiStatus, setAiStatus] = useState("…");
 
   const planLabel = subscription.plan === "premium" ? "Premium" : "Бесплатный";
+
+  useEffect(() => {
+    const base = (process.env.NEXT_PUBLIC_AI_API_BASE || "").replace(/\/$/, "");
+    fetch(`${base}/api/ai`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.provider === "timeweb-deepseek") {
+          setAiStatus(`DeepSeek · ${d.model || "Timeweb"}`);
+        } else {
+          setAiStatus("Mock (ключ Timeweb не подключён)");
+        }
+      })
+      .catch(() => setAiStatus("Mock (API недоступен)"));
+  }, []);
 
   return (
     <Screen>
@@ -25,6 +40,11 @@ export default function ProfilePage() {
         title={user?.name ?? "Ты"}
         subtitle="Personal State · не медицинская карта."
       />
+
+      <div className="card rise mb-4 p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">AI</p>
+        <p className="mt-1 text-sm font-semibold">{aiStatus}</p>
+      </div>
 
       <div className="card rise mb-4 p-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
