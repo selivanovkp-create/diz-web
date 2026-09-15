@@ -87,14 +87,16 @@ export default function ProgressPage() {
           ) : (
             focusAreas.map((a) => {
               if (!a) return null;
-              const arrow =
-                a.trend === "up" ? "↑" : a.trend === "down" ? "↓" : "→";
+              const label =
+                a.trend === "up"
+                  ? "Растёт ↑"
+                  : a.trend === "down"
+                    ? "Проседает ↓"
+                    : "Стабильно";
               return (
                 <div key={a.key} className="flex items-baseline justify-between gap-4">
                   <p className="text-[17px] font-medium">{a.label}</p>
-                  <p className="text-[17px] tabular-nums text-ink-soft">
-                    {arrow} {a.score}
-                  </p>
+                  <p className="text-[17px] text-ink-soft">{label}</p>
                 </div>
               );
             })
