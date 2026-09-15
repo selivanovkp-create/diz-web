@@ -2,28 +2,87 @@
 
 import { Button, Chip, Screen } from "@/components/ui";
 import { useFormaStore } from "@/lib/store";
-import type { WhyOption } from "@/lib/types";
+import type { LifeAreaKey, WhyOption } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const WHY: { id: WhyOption; label: string }[] = [
-  { id: "energy", label: "Энергия" },
-  { id: "sleep", label: "Сон" },
-  { id: "smoking", label: "Курение" },
-  { id: "fitness", label: "Движение" },
-  { id: "stress", label: "Стресс" },
-  { id: "productivity", label: "Фокус" },
-  { id: "discipline", label: "Дисциплина" },
-  { id: "other", label: "Другое" },
+const WHY: { id: WhyOption; label: string; area: LifeAreaKey }[] = [
+  { id: "energy", label: "Больше энергии", area: "energy" },
+  { id: "sleep", label: "Нормальный сон", area: "sleep" },
+  { id: "smoking", label: "Бросить / меньше курить", area: "habits" },
+  { id: "fitness", label: "Движение и тело", area: "physical" },
+  { id: "stress", label: "Меньше стресса", area: "mind" },
+  { id: "productivity", label: "Фокус и работа", area: "productivity" },
+  { id: "discipline", label: "Дисциплина и ритм", area: "habits" },
+  { id: "nutrition", label: "Питание", area: "lifestyle" },
+  { id: "alcohol", label: "Алкоголь", area: "habits" },
+  { id: "relationships", label: "Отношения", area: "social" },
+  { id: "confidence", label: "Уверенность", area: "mind" },
+  { id: "focus", label: "Концентрация", area: "productivity" },
+  { id: "appearance", label: "Внешний вид", area: "lifestyle" },
+  { id: "other", label: "Другое", area: "lifestyle" },
 ];
 
-const BLOCKERS = [
-  "Мало сплю",
-  "Телефон с утра",
-  "Курю",
-  "Нет движения",
-  "Вечно бросаю на 3-й день",
+const STATE_FIELDS: {
+  key: "energy" | "sleep" | "mood" | "stress" | "activity" | "habits" | "work";
+  label: string;
+  showIf: (selected: WhyOption[]) => boolean;
+}[] = [
+  { key: "energy", label: "Энергия днём", showIf: () => true },
+  {
+    key: "sleep",
+    label: "Сон",
+    showIf: (s) => s.length === 0 || s.includes("sleep") || s.includes("energy"),
+  },
+  {
+    key: "stress",
+    label: "Стресс",
+    showIf: (s) =>
+      s.includes("stress") ||
+      s.includes("smoking") ||
+      s.includes("alcohol") ||
+      s.includes("productivity"),
+  },
+  {
+    key: "activity",
+    label: "Движение",
+    showIf: (s) => s.includes("fitness") || s.includes("energy"),
+  },
+  {
+    key: "habits",
+    label: "Контроль привычек",
+    showIf: (s) =>
+      s.includes("smoking") ||
+      s.includes("alcohol") ||
+      s.includes("discipline") ||
+      s.includes("nutrition"),
+  },
+  {
+    key: "work",
+    label: "Фокус на работе",
+    showIf: (s) => s.includes("productivity") || s.includes("focus"),
+  },
+  { key: "mood", label: "Настроение", showIf: () => true },
+];
+
+const BLOCKER_POOL: { label: string; for: WhyOption[] | "all" }[] = [
+  { label: "Мало сплю", for: ["sleep", "energy"] },
+  { label: "К обеду выгораю", for: ["energy", "productivity", "focus"] },
+  { label: "Телефон с утра", for: ["energy", "sleep", "discipline", "focus"] },
+  { label: "Поздно засыпаю", for: ["sleep", "energy"] },
+  { label: "Курю от стресса", for: ["smoking", "stress"] },
+  { label: "Курю по привычке", for: ["smoking"] },
+  { label: "Нет движения", for: ["fitness", "energy", "stress"] },
+  { label: "Сижу целый день", for: ["fitness", "productivity"] },
+  { label: "Вечно бросаю на 3-й день", for: "all" },
+  { label: "Нет времени", for: "all" },
+  { label: "Хаос в голове", for: ["stress", "focus", "productivity", "discipline"] },
+  { label: "Ем от эмоций", for: ["nutrition", "stress"] },
+  { label: "Пью по вечерам", for: ["alcohol", "stress", "sleep"] },
+  { label: "Откладываю важное", for: ["discipline", "productivity", "focus"] },
+  { label: "Нет поддержки вокруг", for: ["relationships", "confidence"] },
+  { label: "Сравниваю себя с другими", for: ["confidence", "appearance"] },
 ];
 
 type Reveal = {
@@ -31,6 +90,11 @@ type Reveal = {
   summary: string;
   tasks: string[];
 };
+
+type Scores = Record<
+  "energy" | "sleep" | "mood" | "stress" | "activity" | "habits" | "work",
+  number
+>;
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -47,18 +111,45 @@ export default function OnboardingPage() {
   const setConstraints = useFormaStore((s) => s.setConstraints);
   const setGoals = useFormaStore((s) => s.setGoals);
   const setMotivators = useFormaStore((s) => s.setMotivators);
+  const addJournal = useFormaStore((s) => s.addJournal);
   const completeOnboarding = useFormaStore((s) => s.completeOnboarding);
   const user = useFormaStore((s) => s.user);
-  const lifeProfile = useFormaStore((s) => s.lifeProfile);
-  const plans = useFormaStore((s) => s.plans);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [energy, setEnergy] = useState(5);
-  const [sleep, setSleep] = useState(5);
+  const [scores, setScores] = useState<Scores>({
+    energy: 5,
+    sleep: 5,
+    mood: 5,
+    stress: 5,
+    activity: 4,
+    habits: 5,
+    work: 5,
+  });
   const [blockers, setBlockers] = useState<string[]>([]);
+  const [story, setStory] = useState("");
+  const [goalNote, setGoalNote] = useState("");
   const [minutes, setMinutes] = useState(20);
   const [reveal, setReveal] = useState<Reveal | null>(null);
+
+  const selected = why.selected;
+
+  const visibleState = useMemo(
+    () => STATE_FIELDS.filter((f) => f.showIf(selected)),
+    [selected],
+  );
+
+  const blockerOptions = useMemo(() => {
+    const labels = BLOCKER_POOL.filter(
+      (b) =>
+        b.for === "all" ||
+        selected.length === 0 ||
+        b.for.some((w) => selected.includes(w)),
+    ).map((b) => b.label);
+    return Array.from(
+      new Set([...labels, "Вечно бросаю на 3-й день", "Нет времени"]),
+    );
+  }, [selected]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -73,6 +164,13 @@ export default function OnboardingPage() {
     );
   }
 
+  function toggleWhy(id: WhyOption) {
+    const next = selected.includes(id)
+      ? selected.filter((x) => x !== id)
+      : [...selected, id].slice(0, 4);
+    setWhy({ selected: next, custom: goalNote || why.custom });
+  }
+
   function toggleBlocker(b: string) {
     setBlockers((prev) =>
       prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b],
@@ -82,51 +180,63 @@ export default function OnboardingPage() {
   async function finish() {
     setBusy(true);
     setError(null);
-    setWhy({ selected: why.selected });
+
+    const freeText = [goalNote.trim(), story.trim()].filter(Boolean).join("\n\n");
+
+    setWhy({
+      selected,
+      custom: freeText || undefined,
+    });
     setCurrentState({
-      energy,
-      sleep,
-      mood: energy,
-      stress: blockers.includes("Вечно бросаю на 3-й день") ? 6 : 4,
-      activity: blockers.includes("Нет движения") ? 3 : 5,
-      habits: blockers.includes("Курю") ? 3 : 5,
+      energy: scores.energy,
+      sleep: scores.sleep,
+      mood: scores.mood,
+      stress: scores.stress,
+      activity: scores.activity,
+      habits: scores.habits,
+      work: scores.work,
+      nutrition: selected.includes("nutrition") ? 4 : 5,
+      social: selected.includes("relationships") ? 4 : 5,
+      control: scores.mood,
+      satisfaction: Math.round((scores.energy + scores.mood) / 2),
     });
     setBehavior({
-      sleepHours: sleep <= 4 ? 5.5 : sleep >= 7 ? 7.5 : 6.5,
+      sleepHours: scores.sleep <= 3 ? 5 : scores.sleep <= 5 ? 6 : scores.sleep <= 7 ? 7 : 8,
+      sleepStable: scores.sleep,
       phoneHours: blockers.includes("Телефон с утра") ? 6 : 3,
+      movementMinutes: blockers.includes("Нет движения") || blockers.includes("Сижу целый день")
+        ? 10
+        : scores.activity * 5,
       habitsToChange: blockers,
-      whyFailed: blockers.includes("Вечно бросаю на 3-й день")
+      triedBefore: blockers.join(", "),
+      whyFailed: freeText || blockers.join("; "),
+      quitPattern: blockers.includes("Вечно бросаю на 3-й день")
         ? "Бросаю на 3-й день"
         : "",
-      triedBefore: blockers.join(", "),
+      discipline: selected.includes("discipline") ? 3 : 5,
     });
     setConstraints({
       minutesPerDay: minutes,
       difficulty: 1,
       preferTiny: minutes <= 20,
       avoid: [],
-      limits: "",
+      limits: freeText.slice(0, 400),
     });
     setGoals(
-      why.selected.slice(0, 2).map((w, i) => ({
-        id: uid("g"),
-        title: WHY.find((x) => x.id === w)?.label ?? w,
-        area:
-          w === "fitness"
-            ? "physical"
-            : w === "smoking"
-              ? "habits"
-              : w === "stress"
-                ? "mind"
-                : w === "productivity"
-                  ? "productivity"
-                  : w === "sleep"
-                    ? "sleep"
-                    : "energy",
-        priority: i + 1,
-      })),
+      selected.slice(0, 3).map((w, i) => {
+        const meta = WHY.find((x) => x.id === w);
+        return {
+          id: uid("g"),
+          title: meta?.label ?? w,
+          area: meta?.area ?? "general",
+          priority: i + 1,
+        };
+      }),
     );
     setMotivators(["visible_progress", "ai_feedback"]);
+    if (freeText) {
+      addJournal(`Онбординг · своими словами:\n${freeText}`);
+    }
 
     try {
       await completeOnboarding();
@@ -138,11 +248,11 @@ export default function OnboardingPage() {
         priorities: [
           label(profile?.priorityArea),
           label(profile?.secondaryArea),
-          profile?.strategy[0] ? "Маленькие шаги каждый день" : "",
+          profile?.strategy[0] ?? "",
         ].filter(Boolean),
         summary:
           profile?.summary ||
-          "Не нужно чинить всё сразу. Начнём с малого.",
+          "Не нужно чинить всё сразу. Начнём с того, что сильнее всего мешает.",
         tasks: (plan?.tasks ?? []).slice(0, 4).map((t) => t.title),
       });
       setOnboardingStep(5);
@@ -157,9 +267,10 @@ export default function OnboardingPage() {
     }
   }
 
-  // silence unused after complete
-  void lifeProfile;
-  void plans;
+  const selectedLabels = selected
+    .map((id) => WHY.find((w) => w.id === id)?.label)
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <Screen showHeader={false} className="pb-10">
@@ -167,26 +278,30 @@ export default function OnboardingPage() {
         <div className="flex min-h-[78dvh] flex-col justify-between pt-8">
           <div className="rise">
             <p className="text-sm font-medium tracking-wide text-muted">Forma</p>
-            <h1 className="font-display mt-5 text-[2.6rem] leading-[1.05] tracking-tight">
-              Скажи, чего хочешь.
+            <h1 className="font-display mt-5 text-[2.5rem] leading-[1.05] tracking-tight">
+              Сначала познакомимся.
               <br />
-              Forma разберётся, что делать.
+              Потом разберём, что менять.
             </h1>
-            <p className="mt-4 max-w-[30ch] text-[15px] leading-relaxed text-muted">
-              Каждый день — один ясный план. Без дашбордов и десятка метрик.
+            <p className="mt-4 max-w-[32ch] text-[15px] leading-relaxed text-muted">
+              Короткий старт: цели → как сейчас → что мешает → сколько времени.
+              Forma соберёт первый план.
             </p>
           </div>
           <div className="space-y-4">
-            <input
-              value={user?.name ?? ""}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Как тебя зовут?"
-              className="w-full rounded-2xl border border-line bg-bg-elevated px-4 py-3.5 text-[16px] outline-none focus:border-ink"
-            />
+            <label className="block">
+              <span className="mb-2 block text-sm text-ink-soft">Как тебя зовут?</span>
+              <input
+                value={user?.name ?? ""}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Костя"
+                className="w-full rounded-2xl border border-line bg-bg-elevated px-4 py-3.5 text-[16px] outline-none focus:border-ink"
+              />
+            </label>
             <Button
               className="w-full"
               onClick={() => {
-                if (!(user?.name || "").trim()) setName("Константин");
+                if (!(user?.name || "").trim()) setName("Костя");
                 startOnboarding();
               }}
             >
@@ -198,33 +313,46 @@ export default function OnboardingPage() {
 
       {step === 1 ? (
         <div className="rise pt-4">
-          <p className="text-sm text-muted">1 / 4 · Зачем</p>
-          <h1 className="font-display mt-3 text-[2.1rem] leading-tight">
-            Что хочешь изменить?
+          <p className="text-sm text-muted">1 / 4 · Цель</p>
+          <h1 className="font-display mt-3 text-[2.05rem] leading-tight">
+            Куда хочешь сдвинуться?
           </h1>
-          <div className="mt-8 flex flex-wrap gap-2">
+          <p className="mt-2 text-[15px] text-muted">
+            Выбери до 4 направлений. Дальше спросим именно про них.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-2">
             {WHY.map((w) => (
               <Chip
                 key={w.id}
-                active={why.selected.includes(w.id)}
-                onClick={() => {
-                  const selected = why.selected.includes(w.id)
-                    ? why.selected.filter((x) => x !== w.id)
-                    : [...why.selected, w.id].slice(0, 3);
-                  setWhy({ selected });
-                }}
+                active={selected.includes(w.id)}
+                onClick={() => toggleWhy(w.id)}
               >
                 {w.label}
               </Chip>
             ))}
           </div>
-          <div className="mt-10 flex gap-2">
+          <label className="mt-8 block">
+            <span className="mb-2 block text-sm text-ink-soft">
+              Своими словами — опционально
+            </span>
+            <textarea
+              value={goalNote}
+              onChange={(e) => {
+                setGoalNote(e.target.value);
+                setWhy({ selected, custom: e.target.value });
+              }}
+              rows={3}
+              placeholder="Например: к обеду уже нет сил, вечером залипаю в телефон…"
+              className="w-full resize-none rounded-2xl border border-line bg-bg-elevated px-4 py-3 text-[15px] outline-none focus:border-ink"
+            />
+          </label>
+          <div className="mt-8 flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(0)}>
               Назад
             </Button>
             <Button
               className="flex-1"
-              disabled={why.selected.length === 0}
+              disabled={selected.length === 0 && !goalNote.trim()}
               onClick={() => setOnboardingStep(2)}
             >
               Дальше
@@ -236,38 +364,37 @@ export default function OnboardingPage() {
       {step === 2 ? (
         <div className="rise pt-4">
           <p className="text-sm text-muted">2 / 4 · Сейчас</p>
-          <h1 className="font-display mt-3 text-[2.1rem] leading-tight">
-            Как дела прямо сейчас?
+          <h1 className="font-display mt-3 text-[2.05rem] leading-tight">
+            Как это у тебя сейчас?
           </h1>
-          <div className="mt-10 space-y-8">
-            <label className="block">
-              <div className="mb-3 flex justify-between text-[15px]">
-                <span>Энергия</span>
-                <span className="text-muted">{energy}/10</span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={energy}
-                onChange={(e) => setEnergy(Number(e.target.value))}
-                className="w-full accent-[var(--accent)]"
-              />
-            </label>
-            <label className="block">
-              <div className="mb-3 flex justify-between text-[15px]">
-                <span>Сон</span>
-                <span className="text-muted">{sleep}/10</span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={sleep}
-                onChange={(e) => setSleep(Number(e.target.value))}
-                className="w-full accent-[var(--accent)]"
-              />
-            </label>
+          {selectedLabels ? (
+            <p className="mt-2 text-[15px] text-muted">
+              Смотрим на: {selectedLabels}
+            </p>
+          ) : (
+            <p className="mt-2 text-[15px] text-muted">
+              Отметь, как себя чувствуешь по ключевым шкалам.
+            </p>
+          )}
+          <div className="mt-8 space-y-7">
+            {visibleState.map((f) => (
+              <label key={f.key} className="block">
+                <div className="mb-3 flex justify-between text-[15px]">
+                  <span>{f.label}</span>
+                  <span className="tabular-nums text-muted">{scores[f.key]}/10</span>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={scores[f.key]}
+                  onChange={(e) =>
+                    setScores((s) => ({ ...s, [f.key]: Number(e.target.value) }))
+                  }
+                  className="w-full accent-[var(--accent)]"
+                />
+              </label>
+            ))}
           </div>
           <div className="mt-10 flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(1)}>
@@ -283,11 +410,16 @@ export default function OnboardingPage() {
       {step === 3 ? (
         <div className="rise pt-4">
           <p className="text-sm text-muted">3 / 4 · Помехи</p>
-          <h1 className="font-display mt-3 text-[2.1rem] leading-tight">
-            Что чаще всего мешает?
+          <h1 className="font-display mt-3 text-[2.05rem] leading-tight">
+            Что мешает сдвинуться?
           </h1>
-          <div className="mt-8 flex flex-wrap gap-2">
-            {BLOCKERS.map((b) => (
+          <p className="mt-2 text-[15px] text-muted">
+            Отметь типичные помехи
+            {selectedLabels ? ` для «${selectedLabels}»` : ""}. Можно добавить
+            свой текст — его прочитает Forma.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-2">
+            {blockerOptions.map((b) => (
               <Chip
                 key={b}
                 active={blockers.includes(b)}
@@ -297,11 +429,31 @@ export default function OnboardingPage() {
               </Chip>
             ))}
           </div>
-          <div className="mt-10 flex gap-2">
+          <label className="mt-8 block">
+            <span className="mb-2 block text-sm font-medium text-ink">
+              Свободная форма · по желанию
+            </span>
+            <p className="mb-3 text-sm text-muted">
+              Расскажи всё, что важно: проблемы, срывы, контекст жизни. Без
+              структуры — Forma разберёт.
+            </p>
+            <textarea
+              value={story}
+              onChange={(e) => setStory(e.target.value)}
+              rows={5}
+              placeholder="Например: сплю по 5–6 часов, к 15:00 уже пустой, вечером курю и сижу в телефоне до двух…"
+              className="w-full resize-none rounded-2xl border border-line bg-bg-elevated px-4 py-3 text-[15px] outline-none focus:border-ink"
+            />
+          </label>
+          <div className="mt-8 flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(2)}>
               Назад
             </Button>
-            <Button className="flex-1" onClick={() => setOnboardingStep(4)}>
+            <Button
+              className="flex-1"
+              disabled={blockers.length === 0 && !story.trim()}
+              onClick={() => setOnboardingStep(4)}
+            >
               Дальше
             </Button>
           </div>
@@ -311,16 +463,19 @@ export default function OnboardingPage() {
       {step === 4 ? (
         <div className="rise pt-4">
           <p className="text-sm text-muted">4 / 4 · Реализм</p>
-          <h1 className="font-display mt-3 text-[2.1rem] leading-tight">
-            Сколько реально можешь в день?
+          <h1 className="font-display mt-3 text-[2.05rem] leading-tight">
+            Сколько времени реально есть в день?
           </h1>
-          <div className="mt-10 grid grid-cols-3 gap-2">
-            {[10, 20, 40].map((m) => (
+          <p className="mt-2 text-[15px] text-muted">
+            Forma подгонит размер плана под этот лимит — не наоборот.
+          </p>
+          <div className="mt-8 grid grid-cols-3 gap-2">
+            {[10, 15, 20, 30, 45, 60].map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMinutes(m)}
-                className={`min-h-16 rounded-2xl border text-[15px] font-medium ${
+                className={`min-h-14 rounded-2xl border text-[15px] font-medium ${
                   minutes === m
                     ? "border-ink bg-ink text-white"
                     : "border-line bg-bg-elevated text-ink-soft"
@@ -330,6 +485,11 @@ export default function OnboardingPage() {
               </button>
             ))}
           </div>
+          {(story.trim() || goalNote.trim()) && (
+            <p className="mt-6 rounded-2xl bg-accent-soft px-4 py-3 text-sm text-ink-soft">
+              Forma учтёт твой свободный текст при сборке старта.
+            </p>
+          )}
           <div className="mt-10 flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(3)}>
               Назад
@@ -350,7 +510,7 @@ export default function OnboardingPage() {
       {step === 5 && reveal ? (
         <div className="rise pt-4">
           <p className="text-sm text-muted">С чего начнём</p>
-          <h1 className="font-display mt-3 text-[2.2rem] leading-tight">
+          <h1 className="font-display mt-3 text-[2.15rem] leading-tight">
             Не надо чинить всё сразу
           </h1>
           <p className="mt-4 max-w-[34ch] text-[15px] leading-relaxed text-muted">
@@ -358,7 +518,7 @@ export default function OnboardingPage() {
           </p>
           <ol className="mt-8 space-y-3">
             {reveal.priorities.slice(0, 3).map((p, i) => (
-              <li key={p} className="text-[18px] font-medium">
+              <li key={`${p}-${i}`} className="text-[18px] font-medium">
                 {i + 1}. {p}
               </li>
             ))}

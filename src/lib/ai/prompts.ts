@@ -67,7 +67,8 @@ export const PROMPTS = {
               "problems": string[0..2], "goals": string[0..2] },
   "summary": string (<=160 chars)
 }
-Контекст: ${JSON.stringify(compactContext(ctx))}`,
+Контекст: ${JSON.stringify(compactContext(ctx))}
+Важно: если в why.custom / behavior.whyFailed / constraints.limits / journal есть свободный текст пользователя — опирайся на него в первую очередь при выборе priority и strategy.`,
 
   dailyPlan: (ctx: AIContext) =>
     `Сгенерируй план на сегодня (2–4 задачи).
@@ -82,6 +83,7 @@ export const PROMPTS = {
 }
 why обязателен: личная польза, не общая мотивация.
 Если энергия/сон низкие — ease и меньше задач.
+Если есть свободный текст пользователя (why.custom / whyFailed / journal) — задачи должны отвечать именно на него.
 Контекст: ${JSON.stringify(compactContext(ctx))}`,
 
   checkIn: (ctx: AIContext, checkIn: CheckInData) =>
