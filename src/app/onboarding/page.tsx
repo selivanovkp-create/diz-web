@@ -4,8 +4,9 @@ import { Button, Chip, Screen } from "@/components/ui";
 import { useFormaStore } from "@/lib/store";
 import type { LifeAreaKey, WhyOption } from "@/lib/types";
 import { uid } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { Suspense } from "react";
 
 const WHY: { id: WhyOption; label: string; area: LifeAreaKey }[] = [
   { id: "energy", label: "Больше энергии", area: "energy" },
@@ -315,12 +316,16 @@ function plotGoals(selected: WhyOption[]): WhyOption[] {
   return selected.length > 0 ? selected : ["other"];
 }
 
-export default function OnboardingPage() {
+function OnboardingInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const hydrated = useFormaStore((s) => s.hydrated);
   const completed = useFormaStore((s) => s.onboardingCompleted);
+  const onboardingMode = useFormaStore((s) => s.onboardingMode);
   const step = useFormaStore((s) => s.onboardingStep);
   const startOnboarding = useFormaStore((s) => s.startOnboarding);
+  const startAddTrack = useFormaStore((s) => s.startAddTrack);
+  const cancelAddTrack = useFormaStore((s) => s.cancelAddTrack);
   const setOnboardingStep = useFormaStore((s) => s.setOnboardingStep);
   const setName = useFormaStore((s) => s.setName);
   const setWhy = useFormaStore((s) => s.setWhy);
@@ -333,6 +338,7 @@ export default function OnboardingPage() {
   const addJournal = useFormaStore((s) => s.addJournal);
   const completeOnboarding = useFormaStore((s) => s.completeOnboarding);
   const user = useFormaStore((s) => s.user);
+  const isAdd = onboardingMode === "add";
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -390,8 +396,22 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (completed && !reveal) router.replace("/today");
-  }, [hydrated, completed, reveal, router]);
+    if (searchParams.get("new") === "1" && completed && onboardingMode !== "add") {
+      startAddTrack();
+      return;
+    }
+    if (completed && onboardingMode !== "add" && !reveal) {
+      router.replace("/today");
+    }
+  }, [
+    hydrated,
+    completed,
+    reveal,
+    router,
+    searchParams,
+    onboardingMode,
+    startAddTrack,
+  ]);
 
   // Drop blockers that no longer match when goals change.
   useEffect(() => {
@@ -514,7 +534,7 @@ export default function OnboardingPage() {
 
   return (
     <Screen showHeader={false} className="pb-10">
-      {step === 0 ? (
+      {step === 0 && !isAdd ? (
         <div className="flex min-h-[78dvh] flex-col justify-between pt-8">
           <div className="rise">
             <p className="text-sm font-medium tracking-wide text-muted">Forma</p>
@@ -525,7 +545,8 @@ export default function OnboardingPage() {
             </h1>
             <p className="mt-4 max-w-[32ch] text-[15px] leading-relaxed text-muted">
               Короткий старт: цели → как сейчас → что мешает → сколько времени.
-              Forma соберёт первый план ровно под твой выбор.
+              Forma соберёт первый план ровно под твой выбор. Потом можно добавить
+              ещё темы.
             </p>
           </div>
           <div className="space-y-4">
@@ -553,13 +574,16 @@ export default function OnboardingPage() {
 
       {step === 1 ? (
         <div className="rise pt-4">
-          <p className="text-sm text-muted">1 / 4 · Цель</p>
+          <p className="text-sm text-muted">
+            {isAdd ? "Новая тема · 1 / 4" : "1 / 4 · Цель"}
+          </p>
           <h1 className="font-display mt-3 text-[2.05rem] leading-tight">
-            Куда хочешь сдвинуться?
+            {isAdd ? "Какую ещё тему берём?" : "Куда хочешь сдвинуться?"}
           </h1>
           <p className="mt-2 text-[15px] text-muted">
-            Выбери до 4 направлений. Шкалы, помехи и примеры дальше будут только
-            про них.
+            {isAdd
+              ? "Отдельный онбординг и свой чеклист. Старые темы останутся во вкладках."
+              : "Выбери до 4 направлений. Шкалы, помехи и примеры дальше будут только про них."}
           </p>
           <div className="mt-7 flex flex-wrap gap-2">
             {WHY.map((w) => (
@@ -588,8 +612,19 @@ export default function OnboardingPage() {
             />
           </label>
           <div className="mt-8 flex gap-2">
-            <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(0)}>
-              Назад
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => {
+                if (isAdd) {
+                  cancelAddTrack();
+                  router.push("/today");
+                } else {
+                  setOnboardingStep(0);
+                }
+              }}
+            >
+              {isAdd ? "Отмена" : "Назад"}
             </Button>
             <Button
               className="flex-1"
@@ -778,10 +813,24 @@ export default function OnboardingPage() {
             </>
           ) : null}
           <Button className="mt-10 w-full" onClick={() => router.push("/today")}>
-            К сегодняшнему плану
+            {isAdd ? "К плану новой темы" : "К сегодняшнему плану"}
           </Button>
         </div>
       ) : null}
     </Screen>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="app-shell flex min-h-dvh items-center justify-center">
+          <p className="font-display text-3xl">Forma</p>
+        </div>
+      }
+    >
+      <OnboardingInner />
+    </Suspense>
   );
 }

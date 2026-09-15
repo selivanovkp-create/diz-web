@@ -1,21 +1,31 @@
 "use client";
 
 import { ProgressRing } from "@/components/ProgressRing";
+import { TrackTabs } from "@/components/TrackTabs";
 import { Button, Screen } from "@/components/ui";
 import { primaryWhy, whyLabel, whyToArea } from "@/lib/plot";
 import { useFormaStore } from "@/lib/store";
+import { plansForTrack } from "@/lib/tracks";
 import { planDayRates, trendPct } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 
 export default function ProgressPage() {
   const lifeProfile = useFormaStore((s) => s.lifeProfile);
   const progress = useFormaStore((s) => s.progress);
-  const plans = useFormaStore((s) => s.plans);
+  const allPlans = useFormaStore((s) => s.plans);
   const whySelected = useFormaStore((s) => s.why.selected);
   const goals = useFormaStore((s) => s.goals);
+  const tracks = useFormaStore((s) => s.tracks);
+  const activeTrackId = useFormaStore((s) => s.activeTrackId);
+  const setActiveTrack = useFormaStore((s) => s.setActiveTrack);
   const weeklyReviews = useFormaStore((s) => s.weeklyReviews);
   const generateWeeklyReview = useFormaStore((s) => s.generateWeeklyReview);
   const [busy, setBusy] = useState(false);
+
+  const plans = useMemo(
+    () => plansForTrack(allPlans, activeTrackId),
+    [allPlans, activeTrackId],
+  );
 
   const review = weeklyReviews[weeklyReviews.length - 1];
   const why = primaryWhy(whySelected);
@@ -98,6 +108,12 @@ export default function ProgressPage() {
 
   return (
     <Screen>
+      <TrackTabs
+        tracks={tracks}
+        activeTrackId={activeTrackId}
+        onSelect={setActiveTrack}
+      />
+
       <h1 className="font-display rise text-[2.2rem] leading-tight tracking-tight">
         Прогресс
       </h1>

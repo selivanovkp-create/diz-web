@@ -105,6 +105,7 @@ type Store = FormaState & {
   setMotivators: (m: Motivator[]) => void;
   setActiveTrack: (id: string) => void;
   startAddTrack: () => void;
+  cancelAddTrack: () => void;
   removeTrack: (id: string) => void;
   startOnboarding: () => void;
   completeOnboarding: () => Promise<void>;
@@ -275,6 +276,16 @@ export const useFormaStore = create<Store>()(
             constraints: defaultConstraints,
             goals: [],
             lifeProfile: null,
+          });
+        },
+
+        cancelAddTrack: () => {
+          const s = get();
+          const active = s.tracks.find((t) => t.id === s.activeTrackId);
+          set({
+            onboardingMode: "idle",
+            onboardingStep: 0,
+            ...(active ? mirrorTrackFields(active) : {}),
           });
         },
 

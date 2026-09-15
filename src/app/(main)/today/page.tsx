@@ -1,13 +1,15 @@
 "use client";
 
 import { TaskCard } from "@/components/TaskCard";
+import { TrackTabs } from "@/components/TrackTabs";
 import { Button, Screen } from "@/components/ui";
 import { todayISO } from "@/lib/gamification";
 import { primaryWhy, whyLabel } from "@/lib/plot";
 import { useFormaStore } from "@/lib/store";
+import { plansForTrack } from "@/lib/tracks";
 import { completionDeltaLabel, greeting, todayStateLine } from "@/lib/utils";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 export default function TodayPage() {
   const user = useFormaStore((s) => s.user);
@@ -17,17 +19,33 @@ export default function TodayPage() {
   const constraints = useFormaStore((s) => s.constraints);
   const setConstraints = useFormaStore((s) => s.setConstraints);
   const regenerateTodayPlan = useFormaStore((s) => s.regenerateTodayPlan);
+  const ensureTodayPlan = useFormaStore((s) => s.ensureTodayPlan);
+  const tracks = useFormaStore((s) => s.tracks);
+  const activeTrackId = useFormaStore((s) => s.activeTrackId);
+  const setActiveTrack = useFormaStore((s) => s.setActiveTrack);
   const [pending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
 
-  const plan = useMemo(() => plans.find((p) => p.date === todayISO()), [plans]);
+  const trackPlans = useMemo(
+    () => plansForTrack(plans, activeTrackId),
+    [plans, activeTrackId],
+  );
+
+  const plan = useMemo(
+    () => trackPlans.find((p) => p.date === todayISO()),
+    [trackPlans],
+  );
   const activeTasks = plan?.tasks.filter((t) => t.status !== "skipped") ?? [];
   const done = activeTasks.filter((t) => t.status === "done").length;
   const total = activeTasks.length;
   const allDone = total > 0 && done === total;
   const focusLabel = whyLabel(primaryWhy(whySelected));
   const dayPct = total ? Math.round((done / total) * 100) : 0;
-  const delta = completionDeltaLabel(plans, whySelected);
+  const delta = completionDeltaLabel(trackPlans, whySelected);
+
+  useEffect(() => {
+    void ensureTodayPlan();
+  }, [activeTrackId, ensureTodayPlan]);
 
   const runPlan = (opts?: { ease?: boolean }) => {
     setErr(null);
@@ -49,6 +67,12 @@ export default function TodayPage() {
 
   return (
     <Screen>
+      <TrackTabs
+        tracks={tracks}
+        activeTrackId={activeTrackId}
+        onSelect={setActiveTrack}
+      />
+
       <section className="rise mb-7">
         <p className="text-[15px] text-muted">{greeting(user?.name)}</p>
         <h1 className="font-display mt-3 text-[2.2rem] leading-[1.08] tracking-tight">
@@ -82,7 +106,7 @@ export default function TodayPage() {
               </p>
             ) : (
               <p className="mt-1 max-w-[34ch] text-sm leading-relaxed text-muted">
-                Шаги из онбординга. Отмечай в чеклисте — Forma подстроит нагрузку.
+                Шаги по этой теме. Отмечай в чеклисте — Forma подстроит нагрузку.
               </p>
             )}
           </div>
@@ -136,9 +160,11 @@ export default function TodayPage() {
       <div className="rise rise-delay-2 space-y-3">
         {allDone ? (
           <div className="rounded-3xl bg-accent-soft px-4 py-4">
-            <p className="text-[15px] font-semibold text-accent">День закрыт</p>
+            <p className="text-[15px] font-semibold text-accent">
+              День по «{focusLabel}» закрыт
+            </p>
             <p className="mt-1 text-sm text-ink-soft">
-              Завтра нагрузка подстроится под то, как ты закрыл чеклист сегодня.
+              Можешь переключиться на другую тему сверху — или отдохнуть.
             </p>
           </div>
         ) : (
