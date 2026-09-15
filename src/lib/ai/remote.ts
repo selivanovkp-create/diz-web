@@ -23,18 +23,21 @@ type Action =
   | "coach"
   | "weekly";
 
+type AiSource = "live" | "mock";
+
 /**
  * Client-side AI that calls our Next.js API proxy (holds Timeweb key server-side).
- * Falls back to mock if network/API fails.
+ * Falls back to mock only if network/API fails — and marks source accordingly.
  */
 export class RemoteAIService implements AIService {
   private mock = new MockAIService();
+  lastSource: AiSource = "mock";
 
-  private async call<T>(
+  private async call<T extends object>(
     action: Action,
     payload: { ctx: AIContext; checkIn?: CheckInData; message?: string; count?: number },
     fallback: () => Promise<T>,
-  ): Promise<T> {
+  ): Promise<T & { source?: AiSource }> {
     const base = publicAiApiBase();
     const url = `${base}/api/ai`;
     try {
@@ -42,14 +45,20 @@ export class RemoteAIService implements AIService {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...payload }),
+        signal: AbortSignal.timeout(120_000),
       });
       if (!res.ok) throw new Error(`AI API ${res.status}`);
       const data = await res.json();
       if (!data?.ok) throw new Error(data?.error || "AI failed");
-      return data.result as T;
+      const source: AiSource = data.source === "live" ? "live" : "mock";
+      this.lastSource = source;
+      const result = data.result as T;
+      return { ...result, source };
     } catch (err) {
       console.warn(`[remote-ai:${action}] fallback`, err);
-      return fallback();
+      this.lastSource = "mock";
+      const data = await fallback();
+      return { ...data, source: "mock" as const };
     }
   }
 

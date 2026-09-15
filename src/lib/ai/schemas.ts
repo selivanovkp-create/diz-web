@@ -12,13 +12,13 @@ export const LifeAreaKeySchema = z.enum([
 ]);
 
 export const GeneratedTaskSchema = z.object({
-  title: z.string().min(3).max(120),
-  detail: z.string().max(240).optional(),
-  duration: z.number().int().min(1).max(120).optional(),
-  difficulty: z.number().int().min(1).max(5),
-  category: z.string(),
-  why: z.string().max(280).optional(),
-  xp: z.number().int().min(5).max(50).default(10),
+  title: z.string().min(2).max(160),
+  detail: z.string().max(400).optional(),
+  duration: z.coerce.number().int().min(1).max(120).optional(),
+  difficulty: z.coerce.number().int().min(1).max(5).catch(2),
+  category: z.string().min(1).catch("lifestyle"),
+  why: z.string().max(400).optional(),
+  xp: z.coerce.number().int().min(5).max(50).catch(10),
 });
 
 export const InitialAssessmentSchema = z.object({
@@ -41,12 +41,14 @@ export const InitialAssessmentSchema = z.object({
 });
 
 export const DailyPlanSchema = z.object({
-  priority: LifeAreaKeySchema,
-  reason: z.string(),
-  confidence: z.number().min(0).max(1),
-  difficultyMode: z.enum(["ease", "hold", "push"]),
-  motivation: z.string(),
+  priority: LifeAreaKeySchema.catch("energy"),
+  reason: z.string().min(1),
+  confidence: z.coerce.number().min(0).max(1).catch(0.6),
+  difficultyMode: z.enum(["ease", "hold", "push"]).catch("hold"),
+  motivation: z.string().min(1),
   tasks: z.array(GeneratedTaskSchema).min(1).max(5),
+  /** Injected by AI layer — not from the model */
+  source: z.enum(["live", "mock"]).optional(),
 });
 
 export const CheckInAnalysisSchema = z.object({
@@ -80,6 +82,7 @@ export const CoachResponseSchema = z.object({
   safetyTriggered: z.boolean().default(false),
   suggestProfessionalHelp: z.boolean().default(false),
   relatedArea: LifeAreaKeySchema.optional(),
+  source: z.enum(["live", "mock"]).optional(),
 });
 
 export const WeeklyReviewSchema = z.object({

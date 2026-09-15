@@ -33,6 +33,14 @@ function getService() {
   return aiConfig().enabled ? new TimewebDeepSeekService() : new MockAIService();
 }
 
+function resultSource(result: unknown, enabled: boolean): "live" | "mock" {
+  if (result && typeof result === "object" && "source" in result) {
+    const s = (result as { source?: string }).source;
+    if (s === "live" || s === "mock") return s;
+  }
+  return enabled ? "live" : "mock";
+}
+
 export async function OPTIONS(req: NextRequest) {
   return new NextResponse(null, {
     status: 204,
@@ -95,7 +103,12 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { ok: true, provider: aiConfig().enabled ? "timeweb-deepseek" : "mock", result },
+      {
+        ok: true,
+        provider: aiConfig().enabled ? "timeweb-deepseek" : "mock",
+        source: resultSource(result, aiConfig().enabled),
+        result,
+      },
       { headers },
     );
   } catch (err) {

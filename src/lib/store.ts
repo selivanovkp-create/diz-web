@@ -27,6 +27,9 @@ import type {
 } from "@/lib/types";
 import { uid } from "@/lib/utils";
 
+/** Avoid re-hitting DeepSeek every page load when today's plan is still mock. */
+const livePlanAttempted = new Set<string>();
+
 const defaultStateScores: OnboardingStateScores = {
   sleep: 5,
   energy: 5,
@@ -74,6 +77,7 @@ type Store = FormaState & {
   startOnboarding: () => void;
   completeOnboarding: () => Promise<void>;
   ensureTodayPlan: () => Promise<void>;
+  regenerateTodayPlan: () => Promise<void>;
   completeTask: (taskId: string) => void;
   skipTask: (taskId: string) => void;
   saveCheckIn: (data: Omit<CheckInData, "date"> & { date?: string }) => Promise<void>;
@@ -222,9 +226,25 @@ export const useFormaStore = create<Store>()(
           const state = get();
           if (!state.onboardingCompleted) return;
           const date = todayISO();
-          if (state.plans.some((p) => p.date === date)) return;
+          const existing = state.plans.find((p) => p.date === date);
+          if (existing?.aiSource === "live") return;
+          if (existing && livePlanAttempted.has(date)) return;
+          livePlanAttempted.add(date);
+          await get().regenerateTodayPlan();
+        },
+
+        regenerateTodayPlan: async () => {
+          const state = get();
+          if (!state.onboardingCompleted) return;
+          const date = todayISO();
+          livePlanAttempted.add(date);
+          set((s) => ({ plans: s.plans.filter((p) => p.date !== date) }));
           const ai = getAIService();
-          const planAI = await ai.generateDailyPlan(buildAIContext(state));
+          const planAI = await ai.generateDailyPlan(buildAIContext(get()));
+          const aiSource =
+            planAI.source === "live" || planAI.source === "mock"
+              ? planAI.source
+              : "mock";
           const tasks: TaskItem[] = planAI.tasks.map((t) => ({
             id: uid("task"),
             title: t.title,
@@ -237,7 +257,7 @@ export const useFormaStore = create<Store>()(
             status: "pending",
             date,
           }));
-          tasks.forEach(() => track("task_created", { date }));
+          tasks.forEach(() => track("task_created", { date, aiSource }));
           if (canUseInsight(state.subscription)) {
             set((s) => ({
               subscription: {
@@ -245,11 +265,11 @@ export const useFormaStore = create<Store>()(
                 aiInsightsUsed: s.subscription.aiInsightsUsed + 1,
               },
             }));
-            track("ai_insight_viewed", { date });
+            track("ai_insight_viewed", { date, aiSource });
           }
           set((s) => ({
             plans: [
-              ...s.plans,
+              ...s.plans.filter((p) => p.date !== date),
               {
                 date,
                 focusArea: planAI.priority,
@@ -257,6 +277,7 @@ export const useFormaStore = create<Store>()(
                 motivation: planAI.motivation,
                 difficultyMode: planAI.difficultyMode,
                 tasks,
+                aiSource,
               },
             ],
           }));

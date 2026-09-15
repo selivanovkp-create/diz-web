@@ -364,6 +364,7 @@ export class MockAIService implements AIService {
       difficultyMode: diff.mode,
       motivation: motivation.message,
       tasks,
+      source: "mock",
     });
   }
 

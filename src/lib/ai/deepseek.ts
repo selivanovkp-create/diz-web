@@ -17,24 +17,37 @@ import {
 import type { CheckInData } from "@/lib/types";
 import type { ZodType } from "zod";
 
-async function structured<T>(
+type AiSource = "live" | "mock";
+
+async function structured<T extends object>(
   action: string,
   user: string,
   schema: ZodType<T>,
   fallback: () => Promise<T>,
-): Promise<T> {
-  try {
-    const raw = await chatCompletion({
-      system: systemFor(action),
-      user,
-      temperature: 0.35,
-    });
-    const parsed = extractJson(raw);
-    return schema.parse(parsed);
-  } catch (err) {
-    console.warn(`[ai:${action}] fallback to mock`, err);
-    return fallback();
+  attempts = 2,
+): Promise<T & { source: AiSource }> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const raw = await chatCompletion({
+        system: systemFor(action),
+        user:
+          i === 0
+            ? user
+            : `${user}\n\nВажно: верни ТОЛЬКО валидный JSON без markdown, строго по схеме.`,
+        temperature: i === 0 ? 0.35 : 0.15,
+      });
+      const parsed = extractJson(raw);
+      const data = schema.parse(parsed);
+      return { ...data, source: "live" as const };
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[ai:${action}] attempt ${i + 1} failed`, err);
+    }
   }
+  console.warn(`[ai:${action}] fallback to mock`, lastErr);
+  const data = await fallback();
+  return { ...data, source: "mock" as const };
 }
 
 export class TimewebDeepSeekService implements AIService {
@@ -106,6 +119,7 @@ export class TimewebDeepSeekService implements AIService {
         reply: safetyCoachReply("crisis"),
         safetyTriggered: true,
         suggestProfessionalHelp: true,
+        source: "live",
       });
     }
     if (risk.medical) {
@@ -114,6 +128,7 @@ export class TimewebDeepSeekService implements AIService {
         safetyTriggered: true,
         suggestProfessionalHelp: true,
         relatedArea: "energy",
+        source: "live",
       });
     }
     return structured(

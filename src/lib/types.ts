@@ -129,6 +129,8 @@ export interface TaskItem {
   completedAt?: string;
 }
 
+export type AISource = "live" | "mock";
+
 export interface DailyPlanData {
   date: string;
   focusArea: LifeAreaKey;
@@ -136,6 +138,8 @@ export interface DailyPlanData {
   motivation: string;
   difficultyMode: "ease" | "hold" | "push";
   tasks: TaskItem[];
+  /** live = Timeweb DeepSeek; mock = local fallback / old cache */
+  aiSource?: AISource;
 }
 
 export interface ProgressData {
