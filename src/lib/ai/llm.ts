@@ -36,6 +36,7 @@ export async function chatCompletion(params: {
         { role: "user", content: params.user },
       ],
     }),
+    signal: AbortSignal.timeout(90_000),
   });
 
   if (!res.ok) {

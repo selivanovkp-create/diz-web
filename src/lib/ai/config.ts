@@ -1,10 +1,11 @@
 export function aiConfig() {
   const apiKey = process.env.TIMEWEB_AI_API_KEY?.trim() || "";
-  const baseUrl = (
-    process.env.TIMEWEB_AI_BASE_URL?.trim() || "https://api.timeweb.ai/v1"
-  ).replace(/\/$/, "");
   const model =
-    process.env.TIMEWEB_AI_MODEL?.trim() || "deepseek/deepseek-chat";
+    process.env.TIMEWEB_AI_MODEL?.trim() || "deepseek/deepseek-flash";
+  const baseUrl = (
+    process.env.TIMEWEB_AI_BASE_URL?.trim() ||
+    "https://api.timeweb.ai/v1"
+  ).replace(/\/$/, "");
   return {
     apiKey,
     baseUrl,
