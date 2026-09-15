@@ -20,6 +20,7 @@ import type {
   ProgressAnalysis,
   WeeklyReviewAI,
 } from "@/lib/ai/schemas";
+import { plansForTrack } from "@/lib/tracks";
 
 export interface AIContext {
   name: string;
@@ -53,7 +54,7 @@ export interface AIService {
 
 export function buildAIContext(state: FormaState): AIContext {
   const last14 = state.checkIns.slice(-14);
-  const plans = state.plans.slice(-14);
+  const plans = plansForTrack(state.plans, state.activeTrackId).slice(-14);
   const tasks = plans.flatMap((p) => p.tasks);
   const done = tasks.filter((t) => t.status === "done").length;
   const completionRate14d = tasks.length ? done / tasks.length : 0.5;

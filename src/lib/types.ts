@@ -137,6 +137,8 @@ export type AISource = "live" | "mock";
 
 export interface DailyPlanData {
   date: string;
+  /** Which problem-track this plan belongs to */
+  trackId?: string;
   focusArea: LifeAreaKey;
   reason: string;
   motivation: string;
@@ -145,6 +147,21 @@ export interface DailyPlanData {
   /** live = Timeweb DeepSeek; mock = local fallback / old cache */
   aiSource?: AISource;
 }
+
+/** One problem the user works on in parallel (own onboarding + plan). */
+export interface FocusTrack {
+  id: string;
+  label: string;
+  why: OnboardingWhy;
+  currentState: OnboardingStateScores;
+  behavior: OnboardingBehavior;
+  constraints: OnboardingConstraints;
+  goals: GoalDraft[];
+  lifeProfile: LifeProfile | null;
+  createdAt: string;
+}
+
+export type OnboardingMode = "idle" | "add";
 
 export interface ProgressData {
   xp: number;
@@ -210,6 +227,11 @@ export interface FormaState {
   user: AppUser | null;
   onboardingStep: number;
   onboardingCompleted: boolean;
+  /** idle = normal; add = onboarding a new problem track */
+  onboardingMode: OnboardingMode;
+  /** Parallel problems; active mirrored into why/currentState/… */
+  tracks: FocusTrack[];
+  activeTrackId: string | null;
   why: OnboardingWhy;
   currentState: OnboardingStateScores;
   behavior: OnboardingBehavior;

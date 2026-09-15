@@ -12,9 +12,17 @@ import {
   todayISO,
 } from "@/lib/gamification";
 import { canUseCoach, canUseInsight, defaultSubscription, PREMIUM_LIMITS } from "@/lib/subscription";
+import {
+  buildTrackFromState,
+  migrateTracksIfNeeded,
+  mirrorTrackFields,
+  plansForTrack,
+  trackLabelFromWhy,
+} from "@/lib/tracks";
 import type {
   AchievementData,
   CheckInData,
+  FocusTrack,
   FormaState,
   GoalDraft,
   LifeAreaKey,
@@ -64,6 +72,27 @@ const defaultConstraints: OnboardingConstraints = {
   preferTiny: true,
 };
 
+function isTodayPlanForActive(
+  p: FormaState["plans"][number],
+  date: string,
+  activeTrackId: string | null,
+) {
+  return (
+    p.date === date &&
+    (!activeTrackId || p.trackId === activeTrackId || !p.trackId)
+  );
+}
+
+function patchActiveTrack(
+  s: Pick<FormaState, "tracks" | "activeTrackId" | "onboardingMode">,
+  patch: Partial<FocusTrack>,
+): FocusTrack[] {
+  if (!s.activeTrackId || s.onboardingMode !== "idle") return s.tracks;
+  return s.tracks.map((t) =>
+    t.id === s.activeTrackId ? { ...t, ...patch } : t,
+  );
+}
+
 type Store = FormaState & {
   hydrateDone: () => void;
   setName: (name: string) => void;
@@ -74,6 +103,9 @@ type Store = FormaState & {
   setConstraints: (c: Partial<OnboardingConstraints>) => void;
   setGoals: (goals: GoalDraft[]) => void;
   setMotivators: (m: Motivator[]) => void;
+  setActiveTrack: (id: string) => void;
+  startAddTrack: () => void;
+  removeTrack: (id: string) => void;
   startOnboarding: () => void;
   completeOnboarding: () => Promise<void>;
   ensureTodayPlan: () => Promise<void>;
@@ -146,6 +178,9 @@ export const useFormaStore = create<Store>()(
         user: null,
         onboardingStep: 0,
         onboardingCompleted: false,
+        onboardingMode: "idle",
+        tracks: [],
+        activeTrackId: null,
         why: { selected: [] },
         currentState: defaultStateScores,
         behavior: defaultBehavior,
@@ -175,20 +210,109 @@ export const useFormaStore = create<Store>()(
           })),
 
         setOnboardingStep: (step) => set({ onboardingStep: step }),
-        setWhy: (why) => set({ why }),
+
+        setWhy: (why) =>
+          set((s) => ({
+            why,
+            tracks: patchActiveTrack(s, {
+              why,
+              label: trackLabelFromWhy(why),
+            }),
+          })),
+
         setCurrentState: (partial) =>
-          set((s) => ({ currentState: { ...s.currentState, ...partial } })),
+          set((s) => {
+            const currentState = { ...s.currentState, ...partial };
+            return {
+              currentState,
+              tracks: patchActiveTrack(s, { currentState }),
+            };
+          }),
+
         setBehavior: (partial) =>
-          set((s) => ({ behavior: { ...s.behavior, ...partial } })),
+          set((s) => {
+            const behavior = { ...s.behavior, ...partial };
+            return {
+              behavior,
+              tracks: patchActiveTrack(s, { behavior }),
+            };
+          }),
+
         setConstraints: (partial) =>
-          set((s) => ({ constraints: { ...s.constraints, ...partial } })),
-        setGoals: (goals) => set({ goals }),
+          set((s) => {
+            const constraints = { ...s.constraints, ...partial };
+            return {
+              constraints,
+              tracks: patchActiveTrack(s, { constraints }),
+            };
+          }),
+
+        setGoals: (goals) =>
+          set((s) => ({
+            goals,
+            tracks: patchActiveTrack(s, { goals }),
+          })),
+
         setMotivators: (motivators) => set({ motivators }),
+
+        setActiveTrack: (id) => {
+          const found = get().tracks.find((t) => t.id === id);
+          if (!found) return;
+          set({
+            activeTrackId: id,
+            ...mirrorTrackFields(found),
+          });
+        },
+
+        startAddTrack: () => {
+          track("onboarding_started", { mode: "add" });
+          set({
+            onboardingMode: "add",
+            onboardingStep: 1,
+            why: { selected: [] },
+            currentState: defaultStateScores,
+            behavior: defaultBehavior,
+            constraints: defaultConstraints,
+            goals: [],
+            lifeProfile: null,
+          });
+        },
+
+        removeTrack: (id) => {
+          set((s) => {
+            const tracks = s.tracks.filter((t) => t.id !== id);
+            const plans = s.plans.filter((p) => p.trackId !== id);
+            if (s.activeTrackId !== id) {
+              return { tracks, plans };
+            }
+            const next = tracks[0] ?? null;
+            if (next) {
+              return {
+                tracks,
+                plans,
+                activeTrackId: next.id,
+                ...mirrorTrackFields(next),
+              };
+            }
+            return {
+              tracks,
+              plans,
+              activeTrackId: null,
+              why: { selected: [] },
+              currentState: defaultStateScores,
+              behavior: defaultBehavior,
+              constraints: defaultConstraints,
+              goals: [],
+              lifeProfile: null,
+            };
+          });
+        },
 
         startOnboarding: () => {
           track("onboarding_started");
           set((s) => ({
             onboardingStep: 1,
+            onboardingMode: "idle",
             user:
               s.user ??
               ({
@@ -242,15 +366,40 @@ export const useFormaStore = create<Store>()(
             summary: assessment.summary,
             strategy: assessment.strategy,
           };
-          livePlanAttempted.add(date);
-          set({
+
+          const state = get();
+          const focusTrack = buildTrackFromState({
+            why: state.why,
+            currentState: state.currentState,
+            behavior: state.behavior,
+            constraints: state.constraints,
+            goals: state.goals,
             lifeProfile,
+          });
+          const appending =
+            state.onboardingMode === "add" || state.tracks.length > 0;
+          const tracks = appending
+            ? [...state.tracks, focusTrack]
+            : [focusTrack];
+
+          livePlanAttempted.add(`${focusTrack.id}:${date}`);
+
+          set({
+            tracks,
+            activeTrackId: focusTrack.id,
+            ...mirrorTrackFields(focusTrack),
             onboardingCompleted: true,
+            onboardingMode: "idle",
             onboardingStep: 0,
             plans: [
-              ...get().plans.filter((p) => p.date !== date),
+              ...state.plans.filter((p) => {
+                if (p.date !== date) return true;
+                if (appending) return p.trackId !== focusTrack.id;
+                return false;
+              }),
               {
                 date,
+                trackId: focusTrack.id,
                 focusArea: planAI.priority,
                 reason: planAI.reason,
                 motivation: planAI.motivation,
@@ -263,18 +412,25 @@ export const useFormaStore = create<Store>()(
           track("onboarding_completed", {
             priority: assessment.priority,
             aiSource,
+            trackId: focusTrack.id,
           });
-          tasks.forEach(() => track("task_created", { date, aiSource }));
+          tasks.forEach(() =>
+            track("task_created", { date, aiSource, trackId: focusTrack.id }),
+          );
         },
 
         ensureTodayPlan: async () => {
           const state = get();
           if (!state.onboardingCompleted) return;
           const date = todayISO();
-          const existing = state.plans.find((p) => p.date === date);
+          const { activeTrackId } = state;
+          const existing = state.plans.find((p) =>
+            isTodayPlanForActive(p, date, activeTrackId),
+          );
           if (existing?.aiSource === "live") return;
-          if (existing && livePlanAttempted.has(date)) return;
-          livePlanAttempted.add(date);
+          const attemptKey = `${activeTrackId}:${date}`;
+          if (existing && livePlanAttempted.has(attemptKey)) return;
+          livePlanAttempted.add(attemptKey);
           await get().regenerateTodayPlan();
         },
 
@@ -282,8 +438,13 @@ export const useFormaStore = create<Store>()(
           const state = get();
           if (!state.onboardingCompleted) return;
           const date = todayISO();
-          livePlanAttempted.add(date);
-          set((s) => ({ plans: s.plans.filter((p) => p.date !== date) }));
+          const { activeTrackId } = state;
+          livePlanAttempted.add(`${activeTrackId}:${date}`);
+          set((s) => ({
+            plans: s.plans.filter(
+              (p) => !isTodayPlanForActive(p, date, s.activeTrackId),
+            ),
+          }));
           const ai = getAIService();
           const planAI = await ai.generateDailyPlan(buildAIContext(get()));
           const aiSource =
@@ -305,7 +466,13 @@ export const useFormaStore = create<Store>()(
             status: "pending" as const,
             date,
           }));
-          tasks.forEach(() => track("task_created", { date, aiSource }));
+          tasks.forEach(() =>
+            track("task_created", {
+              date,
+              aiSource,
+              trackId: activeTrackId ?? undefined,
+            }),
+          );
           if (canUseInsight(state.subscription)) {
             set((s) => ({
               subscription: {
@@ -317,9 +484,12 @@ export const useFormaStore = create<Store>()(
           }
           set((s) => ({
             plans: [
-              ...s.plans.filter((p) => p.date !== date),
+              ...s.plans.filter(
+                (p) => !isTodayPlanForActive(p, date, s.activeTrackId),
+              ),
               {
                 date,
+                trackId: s.activeTrackId ?? undefined,
                 focusArea: planAI.priority,
                 reason: planAI.reason,
                 motivation: planAI.motivation,
@@ -342,7 +512,7 @@ export const useFormaStore = create<Store>()(
           }
           set((s) => {
             const plans = s.plans.map((p) => {
-              if (p.date !== date) return p;
+              if (!isTodayPlanForActive(p, date, s.activeTrackId)) return p;
               return {
                 ...p,
                 tasks: p.tasks.map((t) =>
@@ -381,7 +551,9 @@ export const useFormaStore = create<Store>()(
             if (hour < 9) unlock.push("early_win");
             achievements = awardAchievements(achievements, unlock);
 
-            const todayPlan = plans.find((p) => p.date === date);
+            const todayPlan = plans.find((p) =>
+              isTodayPlanForActive(p, date, s.activeTrackId),
+            );
             if (todayPlan && todayPlan.tasks.every((t) => t.status === "done" || t.status === "skipped")) {
               track("daily_plan_completed", { date });
             }
@@ -408,7 +580,7 @@ export const useFormaStore = create<Store>()(
           const date = todayISO();
           set((s) => ({
             plans: s.plans.map((p) =>
-              p.date !== date
+              !isTodayPlanForActive(p, date, s.activeTrackId)
                 ? p
                 : {
                     ...p,
@@ -432,14 +604,16 @@ export const useFormaStore = create<Store>()(
           const analysis = await ai.analyzeCheckIn(buildAIContext(get()), checkIn);
           // regenerate today plan lightly if reduce advice and plan not mostly done
           const state = get();
-          const plan = state.plans.find((p) => p.date === date);
+          const plan = state.plans.find((p) =>
+            isTodayPlanForActive(p, date, state.activeTrackId),
+          );
           if (analysis.loadAdvice === "reduce" && plan) {
             const pending = plan.tasks.filter((t) => t.status === "pending");
             if (pending.length > 2) {
               const keep = pending.slice(0, 2).map((t) => t.id);
               set((s) => ({
                 plans: s.plans.map((p) =>
-                  p.date !== date
+                  !isTodayPlanForActive(p, date, s.activeTrackId)
                     ? p
                     : {
                         ...p,
@@ -456,7 +630,9 @@ export const useFormaStore = create<Store>()(
             } else {
               set((s) => ({
                 plans: s.plans.map((p) =>
-                  p.date === date ? { ...p, reason: analysis.insight } : p,
+                  isTodayPlanForActive(p, date, s.activeTrackId)
+                    ? { ...p, reason: analysis.insight }
+                    : p,
                 ),
               }));
             }
@@ -584,6 +760,9 @@ export const useFormaStore = create<Store>()(
             user: null,
             onboardingStep: 0,
             onboardingCompleted: false,
+            onboardingMode: "idle",
+            tracks: [],
+            activeTrackId: null,
             why: { selected: [] },
             currentState: defaultStateScores,
             behavior: defaultBehavior,
@@ -606,7 +785,10 @@ export const useFormaStore = create<Store>()(
     {
       name: "forma-mvp-v2-ru",
       onRehydrateStorage: () => (state) => {
-        state?.hydrateDone();
+        if (!state) return;
+        const migrated = migrateTracksIfNeeded(state as FormaState);
+        Object.assign(state, migrated);
+        state.hydrateDone();
       },
       partialize: (s) => {
         const { hydrated: _h, ...rest } = s as Store & { hydrated: boolean };
@@ -615,6 +797,9 @@ export const useFormaStore = create<Store>()(
           user: rest.user,
           onboardingStep: rest.onboardingStep,
           onboardingCompleted: rest.onboardingCompleted,
+          onboardingMode: rest.onboardingMode,
+          tracks: rest.tracks,
+          activeTrackId: rest.activeTrackId,
           why: rest.why,
           currentState: rest.currentState,
           behavior: rest.behavior,
