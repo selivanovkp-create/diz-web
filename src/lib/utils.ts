@@ -1,10 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
-import {
-  CHECKIN_BY_WHY,
-  focusScoreFromCheckIn,
-  primaryWhy,
-} from "@/lib/plot";
-import type { CheckInData, WhyOption } from "@/lib/types";
+import { primaryWhy, whyLabel } from "@/lib/plot";
+import type { DailyPlanData, WhyOption } from "@/lib/types";
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
@@ -24,47 +20,65 @@ export function pct(n: number) {
   return `${Math.round(n)}%`;
 }
 
-/** Short human state line for Today — capacity + focus from onboarding why. */
-export function todayStateLine(
-  checkIn?: CheckInData | null,
-  whySelected: WhyOption[] = [],
-) {
-  const why = primaryWhy(whySelected);
-  const label = CHECKIN_BY_WHY[why].label;
-  if (!checkIn) return `Отметь сигнал по «${label}» — план подстроится.`;
-  const capacity = checkIn.energy;
-  const focus = focusScoreFromCheckIn(checkIn, why);
-  if (capacity <= 3) {
-    return `Мало сил — план лёгкий, но всё ещё про «${label}».`;
-  }
-  if (focus <= 3) {
-    return `По «${label}» сегодня тяжело. Один–два маленьких шага достаточно.`;
-  }
-  if (focus <= 5 || capacity <= 5) {
-    return `Нормальный день по «${label}». Закрой пару простых шагов.`;
-  }
-  if (focus <= 7) return `По «${label}» держишься. Не раздувай день.`;
-  return `По «${label}» есть запас. Не раздувай день.`;
+function dayCompletion(plan?: DailyPlanData | null) {
+  if (!plan) return null;
+  const active = plan.tasks.filter((t) => t.status !== "skipped");
+  if (!active.length) return null;
+  return active.filter((t) => t.status === "done").length / active.length;
 }
 
-export function focusDeltaLabel(
-  checkIns: CheckInData[],
+/** Hero line for Today — driven by checklist + onboarding why. */
+export function todayStateLine(input: {
+  whySelected: WhyOption[];
+  done: number;
+  total: number;
+  hasPlan: boolean;
+  momentumDays: number;
+}) {
+  const label = whyLabel(primaryWhy(input.whySelected));
+  if (!input.hasPlan || input.total === 0) {
+    return `Сегодня собираем шаги по «${label}».`;
+  }
+  if (input.done === 0) {
+    return `Чеклист по «${label}»: начни с одного шага.`;
+  }
+  if (input.done >= input.total) {
+    return `«${label}» на сегодня закрыт.`;
+  }
+  if (input.done / input.total < 0.4) {
+    return `По «${label}» день ещё открыт — без героизма.`;
+  }
+  return `Держишь «${label}». Доведи оставшееся.`;
+}
+
+/** Compare yesterday vs day-before completion for the focus theme. */
+export function completionDeltaLabel(
+  plans: DailyPlanData[],
   whySelected: WhyOption[] = [],
 ) {
-  if (checkIns.length < 2) return null;
-  const why = primaryWhy(whySelected);
-  const label = CHECKIN_BY_WHY[why].label;
-  const a = focusScoreFromCheckIn(checkIns[checkIns.length - 1]!, why);
-  const b = focusScoreFromCheckIn(checkIns[checkIns.length - 2]!, why);
+  const label = whyLabel(primaryWhy(whySelected));
+  const sorted = [...plans].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 2) return null;
+  const a = dayCompletion(sorted[sorted.length - 1]);
+  const b = dayCompletion(sorted[sorted.length - 2]);
+  if (a === null || b === null) return null;
   const d = a - b;
-  if (d >= 1) return `${label} ↑`;
-  if (d <= -1) return `${label} ↓`;
-  return `${label} без резких скачков`;
+  if (d >= 0.15) return `Чеклист по «${label}» ↑`;
+  if (d <= -0.15) return `Чеклист по «${label}» ↓`;
+  return `Чеклист по «${label}» без резких скачков`;
 }
 
-/** @deprecated use focusDeltaLabel */
-export function energyDeltaLabel(checkIns: CheckInData[]) {
-  return focusDeltaLabel(checkIns, ["energy"]);
+export function planDayRates(plans: DailyPlanData[], limit = 7) {
+  return [...plans]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-limit)
+    .map((p) => {
+      const rate = dayCompletion(p);
+      return {
+        date: p.date,
+        rate: rate === null ? 0 : Math.round(rate * 100),
+      };
+    });
 }
 
 export function trendPct(values: number[]) {

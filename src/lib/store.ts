@@ -367,6 +367,7 @@ export const useFormaStore = create<Store>()(
             const completedTotal = s.progress.completedTasks + 1;
             const unlock: string[] = [];
             if (completedTotal === 1) unlock.push("first_step");
+            if (momentum >= 3) unlock.push("checkin_3");
             if (momentum >= 7) unlock.push("momentum_7");
             if (last && daysBetween(last, date) >= 3) unlock.push("comeback");
             if (momentum >= 14) unlock.push("no_zero_14");
@@ -455,7 +456,7 @@ export const useFormaStore = create<Store>()(
             }
           }
           let achievements = get().achievements;
-          if (get().checkIns.length >= 3) {
+          if (get().progress.momentumDays >= 3) {
             achievements = awardAchievements(achievements, ["checkin_3"]);
             set({ achievements });
           }

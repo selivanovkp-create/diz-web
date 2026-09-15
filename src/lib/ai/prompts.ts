@@ -15,6 +15,7 @@ Life area keys: energy|sleep|physical|mind|productivity|habits|social|lifestyle.
 - why.selected / whyLabels / primaryWhy — источник правды о потребностях пользователя.
 - priority, tasks, insight, strategy, relatedArea должны следовать теме онбординга.
 - Низкая энергия/ресурс на план (capacity) только уменьшает нагрузку (ease), НЕ меняет тему на сон/энергию, если пользователь не выбирал их в why.
+- Главный сигнал прогресса и нагрузки — закрытые задачи чеклиста (completionRate), а не отдельный wellness check-in.
 - Не подсовывай курение/сон/энергию как дефолт, если это не why пользователя.`;
 
 export function systemFor(action: string) {

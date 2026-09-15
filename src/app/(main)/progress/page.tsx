@@ -2,97 +2,88 @@
 
 import { ProgressRing } from "@/components/ProgressRing";
 import { Button, Screen } from "@/components/ui";
-import {
-  CHECKIN_BY_WHY,
-  focusScoreFromCheckIn,
-  primaryWhy,
-  whyLabel,
-  whyToArea,
-} from "@/lib/plot";
+import { primaryWhy, whyLabel, whyToArea } from "@/lib/plot";
 import { useFormaStore } from "@/lib/store";
-import { trendPct } from "@/lib/utils";
+import { planDayRates, trendPct } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 
 export default function ProgressPage() {
   const lifeProfile = useFormaStore((s) => s.lifeProfile);
   const progress = useFormaStore((s) => s.progress);
-  const checkIns = useFormaStore((s) => s.checkIns);
   const plans = useFormaStore((s) => s.plans);
   const whySelected = useFormaStore((s) => s.why.selected);
+  const goals = useFormaStore((s) => s.goals);
   const weeklyReviews = useFormaStore((s) => s.weeklyReviews);
   const generateWeeklyReview = useFormaStore((s) => s.generateWeeklyReview);
   const [busy, setBusy] = useState(false);
 
   const review = weeklyReviews[weeklyReviews.length - 1];
   const why = primaryWhy(whySelected);
-  const focusMeta = CHECKIN_BY_WHY[why];
+  const focusLabel = whyLabel(why);
 
-  const weekFocus = useMemo(
-    () => checkIns.slice(-7).map((c) => focusScoreFromCheckIn(c, why) * 10),
-    [checkIns, why],
-  );
-  const weekCapacity = useMemo(
-    () => checkIns.slice(-7).map((c) => c.energy * 10),
-    [checkIns],
-  );
+  const dayRates = useMemo(() => planDayRates(plans, 7), [plans]);
+  const weekRates = useMemo(() => dayRates.map((d) => d.rate), [dayRates]);
 
   const avg = (arr: number[]) =>
     arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
 
-  const focusAvg = avg(weekFocus);
-  const capacityAvg = avg(weekCapacity);
-  const focusTrend = useMemo(() => trendPct(weekFocus), [weekFocus]);
-
-  const weekCompletion = useMemo(() => {
-    const tasks = plans.slice(-7).flatMap((p) => p.tasks);
-    if (!tasks.length) return 0;
-    return Math.round(
-      (tasks.filter((t) => t.status === "done").length / tasks.length) * 100,
-    );
-  }, [plans]);
+  const weekCompletion = avg(weekRates);
+  const completionTrend = useMemo(() => trendPct(weekRates), [weekRates]);
 
   const daysActive = useMemo(() => {
-    const dates = new Set(plans.slice(-7).map((p) => p.date));
-    return dates.size;
+    return plans.filter((p) =>
+      p.tasks.some((t) => t.status === "done" || t.status === "skipped"),
+    ).length;
   }, [plans]);
 
+  /** Per onboarding why: % of related tasks done in recent plans. */
   const focusAreas = useMemo(() => {
-    // Prefer onboarding why labels as focus rings when we have check-ins.
-    if (whySelected.length > 0 && checkIns.length > 0) {
-      return whySelected.slice(0, 3).map((w) => {
-        const scores = checkIns
-          .slice(-7)
-          .map((c) => focusScoreFromCheckIn(c, w) * 10);
-        const value = scores.length
-          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-          : 0;
-        const trend = trendPct(scores);
-        return {
-          key: w,
-          label: whyLabel(w),
-          score: value,
-          trend: trend === null ? "stable" : trend > 0 ? "up" : trend < 0 ? "down" : "stable",
-        };
-      });
-    }
+    const recent = plans.slice(-7);
+    const allTasks = recent.flatMap((p) => p.tasks);
+    const themes = (whySelected.length ? whySelected : [why]).slice(0, 3);
+
+    return themes.map((w) => {
+      const area = whyToArea(w);
+      const related = allTasks.filter(
+        (t) =>
+          t.category === area ||
+          t.category === w ||
+          goals.some((g) => g.area === area && g.title === whyLabel(w)),
+      );
+      // Fall back to all tasks if we can't map categories yet
+      const pool = related.length ? related : allTasks.filter((t) => t.status !== "skipped");
+      const active = pool.filter((t) => t.status !== "skipped");
+      const score = active.length
+        ? Math.round(
+            (active.filter((t) => t.status === "done").length / active.length) * 100,
+          )
+        : 0;
+      return {
+        key: w,
+        label: whyLabel(w),
+        score,
+        trend: score >= 70 ? "up" : score < 40 ? "down" : "stable",
+      };
+    });
+  }, [plans, whySelected, why, goals]);
+
+  const profileFocus = useMemo(() => {
+    if (focusAreas.length) return [];
     const areas = lifeProfile?.areas ?? [];
-    const preferred = whySelected
-      .map((w) => areas.find((a) => a.key === whyToArea(w)))
-      .filter(Boolean);
-    if (preferred.length) return preferred.slice(0, 3);
-    const priority = lifeProfile?.priorityArea;
-    const secondary = lifeProfile?.secondaryArea;
-    return [priority, secondary]
+    return [lifeProfile?.priorityArea, lifeProfile?.secondaryArea]
       .map((k) => areas.find((a) => a.key === k))
       .filter(Boolean)
       .slice(0, 3);
-  }, [lifeProfile, whySelected, checkIns]);
+  }, [focusAreas.length, lifeProfile]);
 
   useEffect(() => {
-    if (checkIns.length >= 3 && !review) {
+    const daysWithWork = plans.filter((p) =>
+      p.tasks.some((t) => t.status === "done"),
+    ).length;
+    if (daysWithWork >= 3 && !review) {
       void generateWeeklyReview().catch(() => undefined);
     }
-  }, [checkIns.length, review, generateWeeklyReview]);
+  }, [plans, review, generateWeeklyReview]);
 
   async function refreshInsight() {
     setBusy(true);
@@ -103,7 +94,7 @@ export default function ProgressPage() {
     }
   }
 
-  const hasData = plans.length > 0 || checkIns.length > 0;
+  const hasData = plans.some((p) => p.tasks.length > 0);
 
   return (
     <Screen>
@@ -111,15 +102,15 @@ export default function ProgressPage() {
         Прогресс
       </h1>
       <p className="rise mt-2 max-w-[34ch] text-[15px] leading-relaxed text-muted">
-        Не рейтинг здоровья. Это ответ на вопрос:{" "}
+        Не рейтинг самочувствия. Ответ на вопрос:{" "}
         <span className="text-ink-soft">
-          держишь курс по «{focusMeta.label}» или проседает?
+          закрываешь чеклист по «{focusLabel}» или нет?
         </span>
       </p>
 
       {!hasData ? (
         <p className="rise rise-delay-1 mt-10 text-[15px] text-muted">
-          Закрой 2–3 дня с планом — здесь появятся круги и проценты.
+          Закрой 2–3 дня с задачами — здесь появятся круги и проценты.
         </p>
       ) : (
         <>
@@ -128,10 +119,10 @@ export default function ProgressPage() {
               value={weekCompletion}
               size={148}
               stroke={10}
-              label="План за неделю"
+              label="Чеклист за неделю"
               caption={
                 daysActive > 0
-                  ? `${daysActive} ${daysActive === 1 ? "день" : "дня"} с задачами`
+                  ? `${daysActive} ${daysActive === 1 ? "день" : "дня"} с шагами`
                   : "Пока мало дней"
               }
             />
@@ -143,26 +134,28 @@ export default function ProgressPage() {
 
           <section className="rise rise-delay-2 mt-10 grid grid-cols-2 gap-6">
             <ProgressRing
-              value={focusAvg || 0}
+              value={weekCompletion}
               size={108}
               stroke={8}
-              label={focusMeta.label}
+              label={focusLabel}
               caption={
-                focusTrend === null
-                  ? "Среднее по сигналам"
-                  : focusTrend > 0
-                    ? `↑ на ${focusTrend}% к старту недели`
-                    : focusTrend < 0
-                      ? `↓ на ${Math.abs(focusTrend)}% к старту недели`
+                completionTrend === null
+                  ? "Среднее по чеклисту"
+                  : completionTrend > 0
+                    ? `↑ на ${completionTrend}% к старту недели`
+                    : completionTrend < 0
+                      ? `↓ на ${Math.abs(completionTrend)}% к старту недели`
                       : "Без резких скачков"
               }
             />
             <ProgressRing
-              value={capacityAvg || 0}
+              value={Math.min(100, progress.momentumDays * 10)}
               size={108}
               stroke={8}
-              label="Ресурс на план"
-              caption="Средняя оценка сил"
+              label="Серия"
+              caption={`${progress.momentumDays} ${
+                progress.momentumDays === 1 ? "день" : "дней"
+              } подряд`}
             />
           </section>
 
@@ -173,23 +166,22 @@ export default function ProgressPage() {
                 {progress.momentumDays === 1 ? "день" : "дней"}
               </p>
               <p className="mt-1 text-sm leading-relaxed text-muted">
-                Сколько дней подряд ты заходил и не обнулял ритм. Это важнее
+                Сколько дней подряд ты закрывал шаги и не обнулял ритм. Это важнее
                 идеальных цифр.
               </p>
             </div>
           ) : null}
 
-          {focusAreas.length > 0 ? (
+          {(focusAreas.length > 0 || profileFocus.length > 0) && (
             <section className="rise rise-delay-3 mt-10">
               <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
-                Твои темы из онбординга
+                Темы из онбординга
               </h2>
               <p className="mt-2 max-w-[34ch] text-sm text-muted">
-                Насколько близко к «нормально» по тому, что ты выбрал. 100% —
-                устойчивое состояние, не идеал.
+                Доля закрытых шагов по тому, что ты выбрал на старте.
               </p>
               <div className="mt-6 grid grid-cols-3 gap-2">
-                {focusAreas.map((a) =>
+                {(focusAreas.length ? focusAreas : profileFocus).map((a) =>
                   a ? (
                     <ProgressRing
                       key={String(a.key)}
@@ -209,7 +201,7 @@ export default function ProgressPage() {
                 )}
               </div>
             </section>
-          ) : null}
+          )}
 
           <section className="rise mt-12">
             <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
@@ -221,8 +213,8 @@ export default function ProgressPage() {
               </p>
             ) : (
               <p className="mt-4 max-w-[34ch] text-[15px] leading-relaxed text-muted">
-                Ещё рано для сильного вывода. Закрой несколько дней — появится
-                ясный паттерн.
+                Ещё рано для сильного вывода. Закрой несколько дней чеклиста —
+                появится ясный паттерн по «{focusLabel}».
               </p>
             )}
             {review?.needsAttention ? (
@@ -232,15 +224,15 @@ export default function ProgressPage() {
             ) : null}
           </section>
 
-          {weekFocus.length >= 2 ? (
+          {weekRates.length >= 2 ? (
             <section className="rise mt-10">
               <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
-                {focusMeta.label} по дням
+                Чеклист по дням
               </h2>
               <div className="mt-4 flex h-24 items-end gap-2">
-                {weekFocus.map((v, i) => (
+                {weekRates.map((v, i) => (
                   <div
-                    key={i}
+                    key={dayRates[i]?.date ?? i}
                     className="flex-1 rounded-t-md bg-accent/65"
                     style={{ height: `${Math.max(10, v)}%` }}
                     title={`${v}%`}

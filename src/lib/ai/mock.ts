@@ -14,7 +14,6 @@ import {
 import { detectSafetyRisk, safetyCoachReply } from "@/lib/ai/safety";
 import {
   AREA_LABELS,
-  focusScoreFromCheckIn,
   primaryWhy,
   strategiesFor,
   tasksForWhy,
@@ -27,11 +26,6 @@ import type { CheckInData, LifeAreaKey, WhyOption } from "@/lib/types";
 
 function clamp(n: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(n)));
-}
-
-function avg(nums: number[]) {
-  if (!nums.length) return 50;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
 function scoreAreas(ctx: AIContext): InitialAssessment["areas"] {
@@ -178,18 +172,16 @@ export class MockAIService implements AIService {
 
   async generateDailyPlan(ctx: AIContext) {
     const assessmentAreas = scoreAreas(ctx);
-    const priority = (ctx.priorityArea as LifeAreaKey) || pickPriority(assessmentAreas, ctx);
+    const priority =
+      (ctx.priorityArea as LifeAreaKey) || pickPriority(assessmentAreas, ctx);
     const why = primaryWhy(ctx.why.selected);
     const focusName = whyLabel(why);
     const diff = await this.adjustDifficulty(ctx);
-    const last = ctx.checkIns[ctx.checkIns.length - 1];
 
-    // Capacity can ease the day — it must not steal focus away from onboarding why.
-    const lowCapacity = last && last.energy <= 3;
-    const tiny =
-      ctx.constraints.preferTiny || diff.mode === "ease" || Boolean(lowCapacity);
-    const mode = lowCapacity ? "ease" : diff.mode;
-    const taskCount = lowCapacity ? Math.min(2, diff.taskCount) : diff.taskCount;
+    // Load comes only from checklist completion / constraints — not a check-in ritual.
+    const tiny = ctx.constraints.preferTiny || diff.mode === "ease";
+    const mode = diff.mode;
+    const taskCount = diff.taskCount;
 
     const pool = poolForWhy(ctx, tiny);
     const avoid = new Set(ctx.constraints.avoid.map((a) => a.toLowerCase()));
@@ -198,20 +190,13 @@ export class MockAIService implements AIService {
     );
     const tasks = filtered.slice(0, taskCount);
 
-    const focusTrendDown =
-      ctx.checkIns.length >= 3 &&
-      avg(ctx.checkIns.slice(-3).map((c) => focusScoreFromCheckIn(c, why))) <
-        avg(
-          ctx.checkIns.slice(-6, -3).map((c) => focusScoreFromCheckIn(c, why)) || [
-            5,
-          ],
-        );
-
-    const reason = lowCapacity
-      ? `Сил мало — план лёгкий, но всё ещё про «${focusName}».`
-      : focusTrendDown
-        ? `По «${focusName}» последние дни проседают. Сегодня без героизма — держим этот фокус.`
-        : `Сегодня продолжаем линию онбординга: «${focusName}».`;
+    const recentPlans = (ctx.recentTasks ?? []).length;
+    const reason =
+      diff.mode === "ease"
+        ? `По чеклисту нагрузка была тяжеловатой. Сегодня легче — но всё ещё про «${focusName}».`
+        : recentPlans > 0
+          ? `Сегодня продолжаем линию онбординга: «${focusName}».`
+          : `Стартовый чеклист по «${focusName}».`;
 
     const motivation = await this.generateMotivation(ctx);
 
@@ -231,28 +216,20 @@ export class MockAIService implements AIService {
     return plan.tasks.slice(0, count);
   }
 
-  async analyzeCheckIn(ctx: AIContext, checkIn: CheckInData) {
+  async analyzeCheckIn(ctx: AIContext, _checkIn: CheckInData) {
     const why = primaryWhy(ctx.why.selected);
     const focusArea = whyToArea(why);
-    const focusScore = focusScoreFromCheckIn(checkIn, why);
+    const rate = recentCompletion(ctx);
     let loadAdvice: "reduce" | "keep" | "increase" = "keep";
-    if (checkIn.energy <= 3 || focusScore <= 3 || checkIn.stress >= 8) {
-      loadAdvice = "reduce";
-    } else if (
-      checkIn.energy >= 8 &&
-      focusScore >= 7 &&
-      recentCompletion(ctx) > 0.8
-    ) {
-      loadAdvice = "increase";
-    }
+    if (rate < 0.4) loadAdvice = "reduce";
+    else if (rate > 0.85 && ctx.momentumDays >= 4) loadAdvice = "increase";
 
     return CheckInAnalysisSchema.parse({
       primaryIssue: focusArea,
-      secondaryIssue: checkIn.energy <= 3 ? "energy" : undefined,
       insight:
         loadAdvice === "reduce"
-          ? `Сегодня по «${whyLabel(why)}» лучше меньше нагрузки. Один–два шага — уже победа.`
-          : `Держим фокус на «${whyLabel(why)}» — это твоя тема из онбординга.`,
+          ? `По чеклисту «${whyLabel(why)}» лучше меньше нагрузки. Один–два шага — уже победа.`
+          : `Держим фокус на «${whyLabel(why)}» — тема из онбординга, сигнал — закрытые шаги.`,
       loadAdvice,
       confidence: 0.8,
     });
@@ -329,30 +306,28 @@ export class MockAIService implements AIService {
     const focus = whyLabel(why);
     const focusArea = whyToArea(why);
     const lower = message.toLowerCase();
-    const last = ctx.checkIns[ctx.checkIns.length - 1];
+    const lastRate = Math.round(recentCompletion(ctx) * 100);
     let reply: string;
 
     if (/устал|tired|энерг|energy|сил/.test(lower)) {
-      reply = last
-        ? `По сигналам: ресурс на план ${last.energy}/10, «${focus}» ${focusScoreFromCheckIn(last, why)}/10. Если сил мало — ужимаем день, но не меняем тему.`
-        : `Мало сил — ок. Держим тему «${focus}», но оставляем 1 короткое действие.`;
+      reply = `Если сил мало — на Today нажми «упростить день». Тема остаётся «${focus}», задач станет меньше. Сейчас чеклист около ${lastRate}%.`;
     } else if (/кур|smoke|никотин|сорвал/.test(lower)) {
       reply =
         why === "smoking"
           ? `Срыв — данные, не приговор. Не надо «бросить навсегда» сегодня. Рабочая рамка: одно окно без никотина и фиксация факта без самобичевания.`
           : `Понял. Если курение мешает «${focus}», зафиксируем это в плане — но основной фокус всё ещё твоя тема из онбординга.`;
     } else if (/прогресс|progress|лучше/.test(lower)) {
-      reply = `Коротко по «${focus}»: ${Math.round(recentCompletion(ctx) * 100)}% задач, momentum ${ctx.momentumDays}. Это и есть прогресс — повторяемость, не идеал.`;
+      reply = `Коротко по чеклисту «${focus}»: ${lastRate}% задач, momentum ${ctx.momentumDays}. Это и есть прогресс — повторяемость, не идеал.`;
     } else if (/сегодня|today|делать/.test(lower)) {
-      reply = `Сегодня приоритет — «${focus}». Открой «Сегодня» и закрой минимум. Если сил мало — одну задачу.`;
+      reply = `Сегодня приоритет — «${focus}». Открой «Сегодня» и закрой минимум в чеклисте. Если тяжело — упрости день.`;
     } else if (/не хочу|нет сил|lazy|апат/.test(lower)) {
       reply = `Ок. Тогда минимум по «${focus}»: одно действие меньше 5 минут. Не «новая жизнь» — просто не обнулить день.`;
     } else if (/зеркал|внешн|вид|тело/.test(lower) && why === "appearance") {
-      reply = `По «Внешний вид» лучше не спорить с зеркалом, а сделать один маленький шаг заботы о теле — уход, еда или короткая ходьба. Оценка отражения подождёт.`;
+      reply = `По «Внешний вид» лучше не спорить с зеркалом, а закрыть один шаг заботы о теле в чеклисте — уход, еда или короткая ходьба.`;
     } else {
       reply = ctx.lifeProfileSummary
-        ? `${ctx.lifeProfileSummary} Можем разобрать «${focus}» или сегодняшний план — что полезнее?`
-        : `Я опираюсь на твой онбординг («${focus}») и сигналы дня, не на общие советы. Что сейчас сильнее всего мешает по этой теме?`;
+        ? `${ctx.lifeProfileSummary} Можем разобрать «${focus}» или сегодняшний чеклист — что полезнее?`
+        : `Я опираюсь на онбординг («${focus}») и то, что ты закрываешь в чеклисте. Что сейчас сильнее всего мешает по этой теме?`;
     }
 
     return CoachResponseSchema.parse({

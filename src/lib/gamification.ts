@@ -31,7 +31,7 @@ export const ACHIEVEMENT_DEFS = [
   { key: "comeback", title: "Возвращение", description: "Вернулся после паузы в 3 дня." },
   { key: "early_win", title: "Ранний заход", description: "Закрыл задачу до 9:00." },
   { key: "no_zero_14", title: "Без нулевых дней", description: "Делал полезное каждый день 14 дней." },
-  { key: "checkin_3", title: "Сигнал пойман", description: "Сделал 3 ежедневных чек-ина." },
+  { key: "checkin_3", title: "Три дня в деле", description: "Закрывал задачи 3 дня подряд." },
   { key: "week_review", title: "Читатель недели", description: "Открыл первый недельный обзор." },
 ] as const;
 
