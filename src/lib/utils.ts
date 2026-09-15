@@ -1,5 +1,10 @@
 import { clsx, type ClassValue } from "clsx";
-import type { CheckInData } from "@/lib/types";
+import {
+  CHECKIN_BY_WHY,
+  focusScoreFromCheckIn,
+  primaryWhy,
+} from "@/lib/checkin-plot";
+import type { CheckInData, WhyOption } from "@/lib/types";
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
@@ -19,24 +24,39 @@ export function pct(n: number) {
   return `${Math.round(n)}%`;
 }
 
-/** Short human state line for Today — no dashboard numbers. */
-export function todayStateLine(checkIn?: CheckInData | null) {
-  if (!checkIn) return "Сначала отметь, как ты себя чувствуешь.";
+/** Short human state line for Today — tied to capacity + focus. */
+export function todayStateLine(
+  checkIn?: CheckInData | null,
+  whySelected: WhyOption[] = [],
+) {
+  const why = primaryWhy(whySelected);
+  const label = CHECKIN_BY_WHY[why].label;
+  if (!checkIn) return `Отметь сигнал по «${label}» — план подстроится.`;
   const e = checkIn.energy;
-  if (e <= 3) return "Сегодня сил меньше обычного — держим план лёгким.";
-  if (e <= 5) return "Сегодня нормально. Главное — довести пару простых шагов.";
-  if (e <= 7) return "Сегодня держишься хорошо.";
-  return "Сегодня есть ресурс. Не раздувай день.";
+  if (e <= 3) return `Мало сил на «${label}» — держим план лёгким.`;
+  if (e <= 5) return `Нормальный день по «${label}». Закрой пару простых шагов.`;
+  if (e <= 7) return `По «${label}» держишься. Не раздувай день.`;
+  return `Есть запас по «${label}». Не раздувай день.`;
 }
 
-export function energyDeltaLabel(checkIns: CheckInData[]) {
+export function focusDeltaLabel(
+  checkIns: CheckInData[],
+  whySelected: WhyOption[] = [],
+) {
   if (checkIns.length < 2) return null;
-  const a = checkIns[checkIns.length - 1]?.energy ?? 0;
-  const b = checkIns[checkIns.length - 2]?.energy ?? 0;
+  const why = primaryWhy(whySelected);
+  const label = CHECKIN_BY_WHY[why].label;
+  const a = focusScoreFromCheckIn(checkIns[checkIns.length - 1]!, why);
+  const b = focusScoreFromCheckIn(checkIns[checkIns.length - 2]!, why);
   const d = a - b;
-  if (d >= 1) return "Энергия ↑";
-  if (d <= -1) return "Энергия ↓";
-  return "Энергия без резких скачков";
+  if (d >= 1) return `${label} ↑`;
+  if (d <= -1) return `${label} ↓`;
+  return `${label} без резких скачков`;
+}
+
+/** @deprecated use focusDeltaLabel */
+export function energyDeltaLabel(checkIns: CheckInData[]) {
+  return focusDeltaLabel(checkIns, ["energy"]);
 }
 
 export function trendPct(values: number[]) {

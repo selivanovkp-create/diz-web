@@ -4,7 +4,8 @@ import { TaskCard } from "@/components/TaskCard";
 import { Button, Screen } from "@/components/ui";
 import { todayISO } from "@/lib/gamification";
 import { useFormaStore } from "@/lib/store";
-import { energyDeltaLabel, greeting, todayStateLine } from "@/lib/utils";
+import { CHECKIN_BY_WHY, primaryWhy } from "@/lib/checkin-plot";
+import { focusDeltaLabel, greeting, todayStateLine } from "@/lib/utils";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 
@@ -13,6 +14,7 @@ export default function TodayPage() {
   const plans = useFormaStore((s) => s.plans);
   const checkIns = useFormaStore((s) => s.checkIns);
   const progress = useFormaStore((s) => s.progress);
+  const whySelected = useFormaStore((s) => s.why.selected);
   const regenerateTodayPlan = useFormaStore((s) => s.regenerateTodayPlan);
   const [pending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -23,7 +25,8 @@ export default function TodayPage() {
   const done = activeTasks.filter((t) => t.status === "done").length;
   const total = activeTasks.length;
   const allDone = total > 0 && done === total;
-  const delta = energyDeltaLabel(checkIns);
+  const focusLabel = CHECKIN_BY_WHY[primaryWhy(whySelected)].label;
+  const delta = focusDeltaLabel(checkIns, whySelected);
   const dayPct = total ? Math.round((done / total) * 100) : 0;
 
   const onRegenerate = () => {
@@ -42,7 +45,7 @@ export default function TodayPage() {
       <section className="rise mb-7">
         <p className="text-[15px] text-muted">{greeting(user?.name)}</p>
         <h1 className="font-display mt-3 text-[2.2rem] leading-[1.08] tracking-tight">
-          {todayStateLine(todayCheck)}
+          {todayStateLine(todayCheck, whySelected)}
         </h1>
         {delta && todayCheck ? (
           <p className="mt-3 text-[15px] text-ink-soft">{delta}</p>
@@ -60,8 +63,12 @@ export default function TodayPage() {
           href="/checkin"
           className="rise rise-delay-1 mb-7 block rounded-3xl border border-line bg-bg-elevated px-4 py-4"
         >
-          <p className="text-[15px] font-semibold text-ink">Как ты сегодня?</p>
-          <p className="mt-1 text-sm text-muted">Минута — и план подстроится.</p>
+          <p className="text-[15px] font-semibold text-ink">
+            Сигнал по «{focusLabel}»
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            Два выбора — Forma подстроит нагрузку плана.
+          </p>
         </Link>
       ) : null}
 
@@ -127,7 +134,7 @@ export default function TodayPage() {
         ) : (
           <Link href={todayCheck ? "/progress" : "/checkin"}>
             <Button className="w-full">
-              {todayCheck ? "Смотреть прогресс" : "Отметить самочувствие"}
+              {todayCheck ? "Смотреть прогресс" : `Сигнал по «${focusLabel}»`}
             </Button>
           </Link>
         )}
