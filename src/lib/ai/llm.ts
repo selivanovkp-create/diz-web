@@ -30,7 +30,7 @@ export async function chatCompletion(params: {
     body: JSON.stringify({
       model,
       temperature: params.temperature ?? 0.4,
-      max_tokens: params.maxTokens ?? 1200,
+      max_tokens: params.maxTokens ?? 2000,
       messages: [
         { role: "system", content: params.system },
         { role: "user", content: params.user },

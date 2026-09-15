@@ -58,6 +58,7 @@ export default function OnboardingPage() {
   const completeOnboarding = useFormaStore((s) => s.completeOnboarding);
   const user = useFormaStore((s) => s.user);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [goalText, setGoalText] = useState("");
   const [customWhy, setCustomWhy] = useState("");
 
@@ -76,9 +77,19 @@ export default function OnboardingPage() {
 
   async function finish() {
     setBusy(true);
-    await completeOnboarding();
-    setBusy(false);
-    router.push("/today");
+    setError(null);
+    try {
+      await completeOnboarding();
+      router.push("/today");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "DeepSeek не ответил. Проверь сеть и нажми ещё раз.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -402,9 +413,17 @@ export default function OnboardingPage() {
               Назад
             </Button>
             <Button className="flex-1" disabled={busy} onClick={() => void finish()}>
-              {busy ? "Собираю профиль…" : "Собрать Personal State"}
+              {busy ? "DeepSeek собирает профиль…" : "Собрать Personal State"}
             </Button>
           </div>
+          {error ? (
+            <p className="mt-3 text-sm text-danger">{error}</p>
+          ) : null}
+          {busy ? (
+            <p className="mt-3 text-xs text-muted">
+              Обычно 10–40 секунд. Не закрывай экран — это живой Timeweb DeepSeek, не заглушка.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </Screen>

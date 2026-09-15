@@ -49,7 +49,7 @@ export default function CoachPage() {
       <SectionTitle
         eyebrow="Коуч"
         title="С учётом тебя"
-        subtitle="Знает профиль, задачи и чек-ин. Не ставит диагнозы."
+        subtitle="Знает профиль, задачи и чек-ин. Отвечает DeepSeek через Timeweb — не заглушка."
       />
 
       {lifeProfile ? (
@@ -104,10 +104,15 @@ export default function CoachPage() {
             className="flex-1 rounded-2xl border border-line bg-bg-elevated px-3 py-3 text-sm outline-none focus:border-accent"
           />
           <Button disabled={busy} onClick={() => void send()}>
-            Отправить
+            {busy ? "…" : "Отправить"}
           </Button>
         </div>
       )}
+      {busy ? (
+        <p className="mt-1 text-center text-[11px] text-muted">
+          DeepSeek думает…
+        </p>
+      ) : null}
       {subscription.plan === "free" ? (
         <p className="mt-1 text-center text-[11px] text-muted">
           Коуч {subscription.coachMessagesUsed}/{subscription.coachMessagesLimit}

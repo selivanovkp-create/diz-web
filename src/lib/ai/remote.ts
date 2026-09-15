@@ -1,5 +1,4 @@
 import type { AIContext, AIService } from "@/lib/ai/service";
-import { MockAIService } from "@/lib/ai/mock";
 import { publicAiApiBase } from "@/lib/ai/config";
 import type { CheckInData } from "@/lib/types";
 import type {
@@ -26,17 +25,21 @@ type Action =
 type AiSource = "live" | "mock";
 
 /**
- * Client-side AI that calls our Next.js API proxy (holds Timeweb key server-side).
- * Falls back to mock only if network/API fails — and marks source accordingly.
+ * Browser → same-origin /api/ai (Timeweb key stays on server).
+ * No silent mock fallback — errors surface to the UI.
  */
 export class RemoteAIService implements AIService {
-  private mock = new MockAIService();
   lastSource: AiSource = "mock";
+  lastError: string | null = null;
 
   private async call<T extends object>(
     action: Action,
-    payload: { ctx: AIContext; checkIn?: CheckInData; message?: string; count?: number },
-    fallback: () => Promise<T>,
+    payload: {
+      ctx: AIContext;
+      checkIn?: CheckInData;
+      message?: string;
+      count?: number;
+    },
   ): Promise<T & { source?: AiSource }> {
     const base = publicAiApiBase();
     const url = `${base}/api/ai`;
@@ -47,29 +50,33 @@ export class RemoteAIService implements AIService {
         body: JSON.stringify({ action, ...payload }),
         signal: AbortSignal.timeout(120_000),
       });
-      if (!res.ok) throw new Error(`AI API ${res.status}`);
-      const data = await res.json();
-      if (!data?.ok) throw new Error(data?.error || "AI failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `AI API ${res.status}`);
+      }
       const source: AiSource = data.source === "live" ? "live" : "mock";
       this.lastSource = source;
-      const result = data.result as T;
-      return { ...result, source };
+      this.lastError = null;
+      if (source !== "live") {
+        throw new Error(
+          "Сервер вернул заглушку вместо DeepSeek. Попробуй ещё раз.",
+        );
+      }
+      return { ...(data.result as T), source };
     } catch (err) {
-      console.warn(`[remote-ai:${action}] fallback`, err);
       this.lastSource = "mock";
-      const data = await fallback();
-      return { ...data, source: "mock" as const };
+      this.lastError = err instanceof Error ? err.message : "AI error";
+      console.warn(`[remote-ai:${action}]`, err);
+      throw err instanceof Error ? err : new Error(String(err));
     }
   }
 
   generateInitialAssessment(ctx: AIContext): Promise<InitialAssessment> {
-    return this.call("initialAssessment", { ctx }, () =>
-      this.mock.generateInitialAssessment(ctx),
-    );
+    return this.call("initialAssessment", { ctx });
   }
 
   generateDailyPlan(ctx: AIContext): Promise<DailyPlanAI> {
-    return this.call("dailyPlan", { ctx }, () => this.mock.generateDailyPlan(ctx));
+    return this.call("dailyPlan", { ctx });
   }
 
   async generateTasks(ctx: AIContext, count: number) {
@@ -78,30 +85,26 @@ export class RemoteAIService implements AIService {
   }
 
   analyzeCheckIn(ctx: AIContext, checkIn: CheckInData): Promise<CheckInAnalysis> {
-    return this.call("checkIn", { ctx, checkIn }, () =>
-      this.mock.analyzeCheckIn(ctx, checkIn),
-    );
+    return this.call("checkIn", { ctx, checkIn });
   }
 
   analyzeProgress(ctx: AIContext): Promise<ProgressAnalysis> {
-    return this.call("progress", { ctx }, () => this.mock.analyzeProgress(ctx));
+    return this.call("progress", { ctx });
   }
 
   generateMotivation(ctx: AIContext): Promise<MotivationAI> {
-    return this.call("motivation", { ctx }, () => this.mock.generateMotivation(ctx));
+    return this.call("motivation", { ctx });
   }
 
   adjustDifficulty(ctx: AIContext): Promise<DifficultyAdjust> {
-    return this.call("difficulty", { ctx }, () => this.mock.adjustDifficulty(ctx));
+    return this.call("difficulty", { ctx });
   }
 
   generateCoachResponse(ctx: AIContext, message: string): Promise<CoachResponseAI> {
-    return this.call("coach", { ctx, message }, () =>
-      this.mock.generateCoachResponse(ctx, message),
-    );
+    return this.call("coach", { ctx, message });
   }
 
   generateWeeklyReview(ctx: AIContext): Promise<WeeklyReviewAI> {
-    return this.call("weekly", { ctx }, () => this.mock.generateWeeklyReview(ctx));
+    return this.call("weekly", { ctx });
   }
 }

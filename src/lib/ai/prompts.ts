@@ -55,27 +55,29 @@ export function compactContext(ctx: AIContext) {
 export const PROMPTS = {
   initialAssessment: (ctx: AIContext) =>
     `Собери Personal State после onboarding.
-Верни JSON:
+Верни КОМПАКТНЫЙ JSON (короткие строки, без воды):
 {
   "priority": LifeAreaKey,
-  "secondary": LifeAreaKey?,
-  "reason": string,
+  "secondary": LifeAreaKey,
+  "reason": string (<=180 chars),
   "confidence": 0..1,
-  "strategy": string[2..5],
-  "areas": [{ "key", "score":0..100, "trend":"up|down|stable", "confidence":0..1, "problems":string[], "goals":string[] }],
-  "summary": string
+  "strategy": string[2..4] (каждый <=100 chars),
+  "areas": ровно 8 объектов для energy|sleep|physical|mind|productivity|habits|social|lifestyle,
+    каждый: { "key", "score":0..100, "trend":"up|down|stable", "confidence":0..1,
+              "problems": string[0..2], "goals": string[0..2] },
+  "summary": string (<=160 chars)
 }
 Контекст: ${JSON.stringify(compactContext(ctx))}`,
 
   dailyPlan: (ctx: AIContext) =>
-    `Сгенерируй план на сегодня (1–5 задач).
-Верни JSON:
+    `Сгенерируй план на сегодня (2–4 задачи).
+КОМПАКТНЫЙ JSON:
 {
   "priority": LifeAreaKey,
-  "reason": string,
+  "reason": string (<=180),
   "confidence": 0..1,
   "difficultyMode": "ease|hold|push",
-  "motivation": string,
+  "motivation": string (<=120),
   "tasks": [{ "title", "detail?", "duration?", "difficulty":1..5, "category", "why?", "xp":5..50 }]
 }
 Если энергия/сон низкие — ease и меньше задач.

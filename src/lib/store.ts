@@ -203,9 +203,35 @@ export const useFormaStore = create<Store>()(
           const ai = getAIService();
           const ctx = buildAIContext(get());
           const assessment = await ai.generateInitialAssessment(ctx);
+          const planAI = await ai.generateDailyPlan({
+            ...ctx,
+            priorityArea: assessment.priority,
+            lifeProfileSummary: assessment.summary,
+          });
+          const date = todayISO();
+          const aiSource =
+            planAI.source === "live" || planAI.source === "mock"
+              ? planAI.source
+              : "live";
+          if (aiSource !== "live") {
+            throw new Error("DeepSeek вернул заглушку вместо живого плана");
+          }
+          const tasks: TaskItem[] = planAI.tasks.map((t) => ({
+            id: uid("task"),
+            title: t.title,
+            detail: t.detail,
+            category: t.category,
+            difficulty: t.difficulty,
+            durationMin: t.duration,
+            why: t.why,
+            xp: t.xp ?? 10,
+            status: "pending",
+            date,
+          }));
           const lifeProfile = {
             areas: assessment.areas.map((a) => ({
               ...a,
+              score: Math.round(Number(a.score)),
               label: areaLabels(a.key),
             })),
             priorityArea: assessment.priority,
@@ -213,13 +239,29 @@ export const useFormaStore = create<Store>()(
             summary: assessment.summary,
             strategy: assessment.strategy,
           };
+          livePlanAttempted.add(date);
           set({
             lifeProfile,
             onboardingCompleted: true,
             onboardingStep: 0,
+            plans: [
+              ...get().plans.filter((p) => p.date !== date),
+              {
+                date,
+                focusArea: planAI.priority,
+                reason: planAI.reason,
+                motivation: planAI.motivation,
+                difficultyMode: planAI.difficultyMode,
+                tasks,
+                aiSource,
+              },
+            ],
           });
-          track("onboarding_completed", { priority: assessment.priority });
-          await get().ensureTodayPlan();
+          track("onboarding_completed", {
+            priority: assessment.priority,
+            aiSource,
+          });
+          tasks.forEach(() => track("task_created", { date, aiSource }));
         },
 
         ensureTodayPlan: async () => {
@@ -443,23 +485,44 @@ export const useFormaStore = create<Store>()(
             createdAt: new Date().toISOString(),
           };
           set((s) => ({ coach: [...s.coach, userMsg] }));
-          const ai = getAIService();
-          const res = await ai.generateCoachResponse(buildAIContext(get()), content);
-          const assistant = {
-            id: uid("m"),
-            role: "assistant" as const,
-            content: res.reply,
-            createdAt: new Date().toISOString(),
-          };
-          set((s) => ({
-            coach: [...s.coach, assistant],
-            subscription: {
-              ...s.subscription,
-              coachMessagesUsed: s.subscription.coachMessagesUsed + 1,
-            },
-          }));
-          track("coach_message_sent", { safety: res.safetyTriggered });
-          return res.reply;
+          try {
+            const ai = getAIService();
+            const res = await ai.generateCoachResponse(
+              buildAIContext(get()),
+              content,
+            );
+            const assistant = {
+              id: uid("m"),
+              role: "assistant" as const,
+              content: res.reply,
+              createdAt: new Date().toISOString(),
+            };
+            set((s) => ({
+              coach: [...s.coach, assistant],
+              subscription: {
+                ...s.subscription,
+                coachMessagesUsed: s.subscription.coachMessagesUsed + 1,
+              },
+            }));
+            track("coach_message_sent", {
+              safety: res.safetyTriggered,
+              aiSource: res.source ?? "live",
+            });
+            return res.reply;
+          } catch (err) {
+            const msg =
+              err instanceof Error
+                ? err.message
+                : "Не удалось получить ответ DeepSeek";
+            const assistant = {
+              id: uid("m"),
+              role: "assistant" as const,
+              content: `Сейчас AI недоступен: ${msg}. Нажми ещё раз через пару секунд.`,
+              createdAt: new Date().toISOString(),
+            };
+            set((s) => ({ coach: [...s.coach, assistant] }));
+            return assistant.content;
+          }
         },
 
         unlockPremium: () => {

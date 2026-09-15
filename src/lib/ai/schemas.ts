@@ -22,22 +22,25 @@ export const GeneratedTaskSchema = z.object({
 });
 
 export const InitialAssessmentSchema = z.object({
-  priority: LifeAreaKeySchema,
+  priority: LifeAreaKeySchema.catch("energy"),
   secondary: LifeAreaKeySchema.optional(),
-  reason: z.string(),
-  confidence: z.number().min(0).max(1),
-  strategy: z.array(z.string()).min(2).max(6),
-  areas: z.array(
-    z.object({
-      key: LifeAreaKeySchema,
-      score: z.number().int().min(0).max(100),
-      trend: z.enum(["up", "down", "stable"]),
-      confidence: z.number().min(0).max(1),
-      problems: z.array(z.string()),
-      goals: z.array(z.string()),
-    }),
-  ),
-  summary: z.string(),
+  reason: z.string().min(1),
+  confidence: z.coerce.number().min(0).max(1).catch(0.6),
+  strategy: z.array(z.string()).min(1).max(6),
+  areas: z
+    .array(
+      z.object({
+        key: LifeAreaKeySchema,
+        score: z.coerce.number().min(0).max(100),
+        trend: z.enum(["up", "down", "stable"]).catch("stable"),
+        confidence: z.coerce.number().min(0).max(1).catch(0.5),
+        problems: z.array(z.string()).default([]),
+        goals: z.array(z.string()).default([]),
+      }),
+    )
+    .min(1),
+  summary: z.string().min(1),
+  source: z.enum(["live", "mock"]).optional(),
 });
 
 export const DailyPlanSchema = z.object({
@@ -52,11 +55,12 @@ export const DailyPlanSchema = z.object({
 });
 
 export const CheckInAnalysisSchema = z.object({
-  primaryIssue: LifeAreaKeySchema,
+  primaryIssue: LifeAreaKeySchema.catch("energy"),
   secondaryIssue: LifeAreaKeySchema.optional(),
-  insight: z.string(),
-  loadAdvice: z.enum(["reduce", "keep", "increase"]),
-  confidence: z.number().min(0).max(1),
+  insight: z.string().min(1),
+  loadAdvice: z.enum(["reduce", "keep", "increase"]).catch("keep"),
+  confidence: z.coerce.number().min(0).max(1).catch(0.6),
+  source: z.enum(["live", "mock"]).optional(),
 });
 
 export const ProgressAnalysisSchema = z.object({
