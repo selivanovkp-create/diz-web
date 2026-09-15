@@ -39,7 +39,24 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Replace via `setAIService(realProvider)`.
 
-## Telegram Mini App
+## AI (Timeweb DeepSeek)
+
+Серверный ключ Timeweb AI Gateway. Фронт ходит в `/api/ai`, ключ не попадает в браузер.
+
+```bash
+TIMEWEB_AI_API_KEY=tw_...
+TIMEWEB_AI_MODEL=deepseek/deepseek-chat   # точное имя из панели Timeweb
+TIMEWEB_AI_BASE_URL=https://api.timeweb.ai/v1
+```
+
+Если ключа нет — используется mock AI с той же схемой данных.
+
+Для Mini App на GitHub Pages задай backend:
+
+```bash
+NEXT_PUBLIC_AI_API_BASE=https://<твой-vercel>.vercel.app
+```
+
 
 Bot: [@kostya_health_bot](https://t.me/kostya_health_bot)
 

@@ -511,15 +511,3 @@ export class MockAIService implements AIService {
     });
   }
 }
-
-let singleton: AIService | null = null;
-
-export function getAIService(): AIService {
-  if (!singleton) singleton = new MockAIService();
-  return singleton;
-}
-
-/** Swap provider later without touching UI */
-export function setAIService(service: AIService) {
-  singleton = service;
-}

@@ -2,8 +2,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { getAIService } from "@/lib/ai";
 import { buildAIContext } from "@/lib/ai/service";
-import { getAIService } from "@/lib/ai/mock";
 import { track, registerAnalyticsSink, type AnalyticsEventName } from "@/lib/analytics";
 import {
   ACHIEVEMENT_DEFS,
