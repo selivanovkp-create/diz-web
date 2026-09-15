@@ -1,116 +1,163 @@
 "use client";
 
-import { Screen, SectionTitle, ScoreBar } from "@/components/ui";
+import { Button, Screen } from "@/components/ui";
 import { useFormaStore } from "@/lib/store";
-import { pct } from "@/lib/utils";
-import Link from "next/link";
-import { useMemo } from "react";
+import { pct, trendPct } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
+
+const FOCUS_KEYS = ["energy", "sleep", "physical", "habits"] as const;
 
 export default function ProgressPage() {
   const lifeProfile = useFormaStore((s) => s.lifeProfile);
   const progress = useFormaStore((s) => s.progress);
-  const achievements = useFormaStore((s) => s.achievements);
   const checkIns = useFormaStore((s) => s.checkIns);
   const plans = useFormaStore((s) => s.plans);
+  const weeklyReviews = useFormaStore((s) => s.weeklyReviews);
+  const generateWeeklyReview = useFormaStore((s) => s.generateWeeklyReview);
+  const [busy, setBusy] = useState(false);
 
-  const weekEnergy = useMemo(() => {
-    return checkIns.slice(-7).map((c) => c.energy * 10);
-  }, [checkIns]);
+  const review = weeklyReviews[weeklyReviews.length - 1];
+
+  const weekEnergy = useMemo(
+    () => checkIns.slice(-7).map((c) => c.energy * 10),
+    [checkIns],
+  );
+
+  const energyTrend = useMemo(() => trendPct(weekEnergy), [weekEnergy]);
+
+  const focusAreas = useMemo(() => {
+    const areas = lifeProfile?.areas ?? [];
+    const preferred = FOCUS_KEYS.map((k) => areas.find((a) => a.key === k)).filter(
+      Boolean,
+    );
+    if (preferred.length) return preferred.slice(0, 4);
+    return areas.slice(0, 4);
+  }, [lifeProfile]);
 
   const completion = useMemo(() => {
     const tasks = plans.slice(-7).flatMap((p) => p.tasks);
-    if (!tasks.length) return 0;
+    if (!tasks.length) return null;
     return tasks.filter((t) => t.status === "done").length / tasks.length;
   }, [plans]);
 
+  useEffect(() => {
+    if (checkIns.length >= 3 && !review) {
+      void generateWeeklyReview().catch(() => undefined);
+    }
+  }, [checkIns.length, review, generateWeeklyReview]);
+
+  async function refreshInsight() {
+    setBusy(true);
+    try {
+      await generateWeeklyReview();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Screen>
-      <SectionTitle
-        eyebrow="Прогресс"
-        title="Состояние во времени"
-        subtitle="Показатели из поведения и самооценки. Не медицинские оценки."
-      />
+      <h1 className="font-display rise text-[2.2rem] leading-tight tracking-tight">
+        Прогресс
+      </h1>
+      <p className="rise mt-2 max-w-[32ch] text-[15px] text-muted">
+        Ты действительно становишься лучше?
+      </p>
 
-      <div className="card rise mb-4 p-4">
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-              Уровень
+      {progress.momentumDays > 0 ? (
+        <p className="rise rise-delay-1 mt-6 text-[15px] text-ink-soft">
+          Momentum · {progress.momentumDays}{" "}
+          {progress.momentumDays === 1 ? "день" : "дней"}
+        </p>
+      ) : (
+        <p className="rise rise-delay-1 mt-6 text-[15px] text-muted">
+          Дай Forma пару дней — появятся первые закономерности.
+        </p>
+      )}
+
+      <section className="rise rise-delay-2 mt-10">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
+          30 дней · фокус
+        </h2>
+        <div className="mt-4 space-y-5">
+          {focusAreas.length === 0 ? (
+            <p className="text-[15px] text-muted">
+              После онбординга здесь появятся ключевые изменения.
             </p>
-            <p className="font-display text-3xl">{progress.level}</p>
-            <p className="text-sm text-muted">{progress.levelTitle}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-semibold">{progress.xp} XP</p>
-            <p className="text-xs text-muted">Momentum {progress.momentumDays} дн.</p>
-          </div>
-        </div>
-        <div className="mt-4">
-          <ScoreBar value={completion * 100} />
-          <p className="mt-2 text-xs text-muted">Выполнение за неделю {pct(completion * 100)}</p>
-        </div>
-      </div>
-
-      <div className="rise rise-delay-1 mb-4">
-        <h2 className="mb-3 text-sm font-semibold">Сферы жизни</h2>
-        <div className="space-y-3">
-          {lifeProfile?.areas
-            .slice()
-            .sort((a, b) => a.score - b.score)
-            .map((a) => (
-              <div key={a.key} className="card p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="font-semibold">{a.label}</p>
-                  <p className="tabular-nums text-sm">
-                    {a.score}
-                    <span className="text-muted">
-                      {" "}
-                      {a.trend === "up" ? "↑" : a.trend === "down" ? "↓" : "→"}
-                    </span>
+          ) : (
+            focusAreas.map((a) => {
+              if (!a) return null;
+              const arrow =
+                a.trend === "up" ? "↑" : a.trend === "down" ? "↓" : "→";
+              return (
+                <div key={a.key} className="flex items-baseline justify-between gap-4">
+                  <p className="text-[17px] font-medium">{a.label}</p>
+                  <p className="text-[17px] tabular-nums text-ink-soft">
+                    {arrow} {a.score}
                   </p>
                 </div>
-                <ScoreBar value={a.score} />
-                {a.problems[0] ? (
-                  <p className="mt-2 text-xs text-muted">{a.problems[0]}</p>
-                ) : null}
-              </div>
-            ))}
+              );
+            })
+          )}
         </div>
-      </div>
-
-      {weekEnergy.length > 0 ? (
-        <div className="card rise rise-delay-2 mb-4 p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-            Энергия · последние чек-ины
+        {completion !== null ? (
+          <p className="mt-6 text-sm text-muted">
+            За неделю закрыто {pct(completion * 100)} плана
           </p>
-          <div className="mt-3 flex h-24 items-end gap-1.5">
+        ) : null}
+      </section>
+
+      <section className="rise rise-delay-3 mt-12">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
+          Главное изменение
+        </h2>
+        {review?.biggestWin || review?.aiNote ? (
+          <p className="mt-4 max-w-[36ch] text-[17px] leading-relaxed text-ink">
+            {review.biggestWin || review.aiNote}
+          </p>
+        ) : (
+          <p className="mt-4 max-w-[34ch] text-[15px] leading-relaxed text-muted">
+            Ещё рано для сильного вывода. Закрой несколько дней — Forma увидит
+            паттерн.
+          </p>
+        )}
+        {review?.needsAttention ? (
+          <p className="mt-4 max-w-[34ch] text-[15px] text-ink-soft">
+            Внимание: {review.needsAttention}
+          </p>
+        ) : null}
+      </section>
+
+      {weekEnergy.length >= 2 ? (
+        <section className="rise mt-12">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
+            Энергия · неделя
+            {energyTrend !== null ? (
+              <span className="ml-2 font-medium normal-case tracking-normal text-ink-soft">
+                {energyTrend > 0 ? `↑ ${energyTrend}%` : energyTrend < 0 ? `↓ ${Math.abs(energyTrend)}%` : "→"}
+              </span>
+            ) : null}
+          </h2>
+          <div className="mt-5 flex h-28 items-end gap-2">
             {weekEnergy.map((v, i) => (
-              <div key={i} className="flex-1 rounded-t bg-accent/80" style={{ height: `${v}%` }} />
+              <div
+                key={i}
+                className="flex-1 rounded-t-md bg-accent/70"
+                style={{ height: `${Math.max(8, v)}%` }}
+              />
             ))}
           </div>
-        </div>
+        </section>
       ) : null}
 
-      <div className="rise rise-delay-3 mb-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Достижения</h2>
-          <Link href="/weekly" className="text-xs text-accent">
-            Недельный обзор
-          </Link>
-        </div>
-        {achievements.length === 0 ? (
-          <p className="text-sm text-muted">Появятся после первых действий.</p>
-        ) : (
-          <div className="space-y-2">
-            {achievements.map((a) => (
-              <div key={a.key} className="card p-3">
-                <p className="text-sm font-semibold">{a.title}</p>
-                <p className="text-xs text-muted">{a.description}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <Button
+        variant="soft"
+        className="mt-12 w-full"
+        disabled={busy}
+        onClick={() => void refreshInsight()}
+      >
+        {busy ? "Смотрю…" : "Обновить взгляд Forma"}
+      </Button>
     </Screen>
   );
 }

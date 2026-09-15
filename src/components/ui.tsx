@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import type { ButtonHTMLAttributes, PropsWithChildren } from "react";
+import { AppHeader } from "@/components/AppHeader";
 
 export function Button({
   children,
@@ -17,7 +18,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-40",
+        "inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-[15px] font-semibold transition active:scale-[0.98] disabled:opacity-40",
         variant === "primary" && "bg-accent text-white",
         variant === "ghost" && "bg-transparent text-ink-soft",
         variant === "soft" && "bg-accent-soft text-accent",
@@ -34,32 +35,33 @@ export function Button({
 export function Screen({
   children,
   className,
-}: PropsWithChildren<{ className?: string }>) {
+  showHeader = true,
+}: PropsWithChildren<{ className?: string; showHeader?: boolean }>) {
   return (
-    <div className={cn("app-shell safe-bottom px-5 pt-6", className)}>{children}</div>
+    <div className={cn("app-shell safe-bottom px-5 pt-5", className)}>
+      {showHeader ? <AppHeader /> : null}
+      {children}
+    </div>
   );
 }
 
 export function SectionTitle({
-  eyebrow,
   title,
   subtitle,
 }: {
-  eyebrow?: string;
   title: string;
   subtitle?: string;
 }) {
   return (
-    <div className="rise mb-5">
-      {eyebrow ? (
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-          {eyebrow}
-        </p>
-      ) : null}
-      <h1 className="font-display text-[2rem] leading-tight tracking-tight text-ink">
+    <div className="rise mb-6">
+      <h1 className="font-display text-[2.15rem] leading-[1.1] tracking-tight text-ink">
         {title}
       </h1>
-      {subtitle ? <p className="mt-2 text-sm leading-relaxed text-muted">{subtitle}</p> : null}
+      {subtitle ? (
+        <p className="mt-2 max-w-[34ch] text-[15px] leading-relaxed text-muted">
+          {subtitle}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -67,12 +69,12 @@ export function SectionTitle({
 export function ScoreBar({ value, max = 100 }: { value: number; max?: number }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-line">
+    <div className="h-1 w-full overflow-hidden rounded-full bg-line">
       <motion.div
         className="h-full rounded-full bg-accent"
         initial={{ width: 0 }}
         animate={{ width: `${pct}%` }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
       />
     </div>
   );
@@ -92,9 +94,9 @@ export function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full border px-3.5 py-2 text-sm transition",
+        "min-h-11 rounded-full border px-4 py-2.5 text-[15px] transition",
         active
-          ? "border-accent bg-accent text-white"
+          ? "border-ink bg-ink text-white"
           : "border-line bg-bg-elevated text-ink-soft",
       )}
     >
@@ -103,33 +105,32 @@ export function Chip({
   );
 }
 
-export function SliderField({
-  label,
+export function ChoiceRow({
+  options,
   value,
   onChange,
-  min = 1,
-  max = 10,
 }: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
+  options: { id: string; label: string }[];
+  value?: string;
+  onChange: (id: string) => void;
 }) {
   return (
-    <label className="block">
-      <div className="mb-2 flex items-center justify-between text-sm">
-        <span className="text-ink-soft">{label}</span>
-        <span className="font-semibold tabular-nums text-ink">{value}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[var(--accent)]"
-      />
-    </label>
+    <div className="grid grid-cols-3 gap-2">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          className={cn(
+            "min-h-14 rounded-2xl border px-2 py-3 text-center text-sm font-medium transition",
+            value === o.id
+              ? "border-ink bg-ink text-white"
+              : "border-line bg-bg-elevated text-ink-soft",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }

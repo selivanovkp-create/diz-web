@@ -17,8 +17,8 @@ export default function HomePage() {
   return (
     <div className="app-shell flex min-h-dvh items-center justify-center px-6">
       <div className="text-center">
-        <p className="font-display text-4xl tracking-tight">FORMA</p>
-        <p className="mt-2 text-sm text-muted">Загружаю систему…</p>
+        <p className="font-display text-4xl tracking-tight">Forma</p>
+        <p className="mt-2 text-sm text-muted">Открываю…</p>
       </div>
     </div>
   );

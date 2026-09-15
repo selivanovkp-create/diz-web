@@ -1,27 +1,22 @@
 "use client";
 
-import { Button, Screen, SectionTitle } from "@/components/ui";
+import { Button, Screen } from "@/components/ui";
 import { canUseCoach } from "@/lib/subscription";
 import { useFormaStore } from "@/lib/store";
 import { useEffect, useRef, useState } from "react";
 
-const AREA_RU: Record<string, string> = {
-  energy: "энергия",
-  sleep: "сон",
-  physical: "движение",
-  mind: "голова",
-  productivity: "продуктивность",
-  habits: "привычки",
-  social: "социум",
-  lifestyle: "образ жизни",
-};
+const PROMPTS = [
+  "Почему я постоянно устаю?",
+  "Помоги бросить курить",
+  "Что мне делать сегодня?",
+  "Просто поговорить",
+];
 
 export default function CoachPage() {
   const coach = useFormaStore((s) => s.coach);
   const sendCoachMessage = useFormaStore((s) => s.sendCoachMessage);
   const subscription = useFormaStore((s) => s.subscription);
   const unlockPremium = useFormaStore((s) => s.unlockPremium);
-  const lifeProfile = useFormaStore((s) => s.lifeProfile);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -30,66 +25,69 @@ export default function CoachPage() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [coach.length]);
 
-  async function send() {
-    if (!text.trim() || busy) return;
+  async function send(message?: string) {
+    const content = (message ?? text).trim();
+    if (!content || busy) return;
     setBusy(true);
-    const reply = await sendCoachMessage(text.trim());
-    setBusy(false);
-    if (reply === null) return;
     setText("");
+    await sendCoachMessage(content);
+    setBusy(false);
   }
 
   const allowed = canUseCoach(subscription);
-  const priorityLabel = lifeProfile
-    ? AREA_RU[lifeProfile.priorityArea] ?? lifeProfile.priorityArea
-    : null;
 
   return (
     <Screen className="flex min-h-dvh flex-col">
-      <SectionTitle
-        eyebrow="Коуч"
-        title="С учётом тебя"
-        subtitle="Знает профиль, задачи и чек-ин. Отвечает DeepSeek через Timeweb — не заглушка."
-      />
+      <h1 className="font-display text-[2.2rem] leading-tight tracking-tight">
+        Коуч
+      </h1>
+      <p className="mt-2 max-w-[32ch] text-[15px] text-muted">
+        Что хочешь разобрать?
+      </p>
 
-      {lifeProfile ? (
-        <div className="card mb-4 p-3 text-xs text-muted">
-          Сейчас приоритет:{" "}
-          <span className="font-semibold text-ink">{priorityLabel}</span>
-          {" · "}
-          {lifeProfile.summary}
-        </div>
-      ) : null}
-
-      <div className="flex-1 space-y-3">
+      <div className="mt-6 flex-1 space-y-3">
         {coach.length === 0 ? (
-          <div className="card p-4 text-sm text-muted">
-            Спроси, например: «Почему я постоянно устаю?» или «Что мне делать сегодня?»
+          <div className="flex flex-col gap-2">
+            {PROMPTS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                disabled={!allowed || busy}
+                onClick={() => void send(p)}
+                className="rounded-2xl border border-line bg-bg-elevated px-4 py-3.5 text-left text-[15px] text-ink-soft transition active:scale-[0.99] disabled:opacity-40"
+              >
+                {p}
+              </button>
+            ))}
           </div>
         ) : null}
+
         {coach.map((m) => (
           <div
             key={m.id}
             className={
               m.role === "user"
-                ? "ml-8 rounded-2xl bg-accent px-3 py-2 text-sm text-white"
-                : "mr-6 card px-3 py-2 text-sm leading-relaxed text-ink-soft"
+                ? "ml-8 rounded-2xl bg-ink px-4 py-3 text-[15px] leading-relaxed text-white"
+                : "mr-4 text-[15px] leading-relaxed text-ink-soft"
             }
           >
             {m.content}
           </div>
         ))}
+        {busy ? (
+          <p className="text-sm text-muted">Думаю…</p>
+        ) : null}
         <div ref={endRef} />
       </div>
 
       {!allowed ? (
-        <div className="card mt-4 p-4">
-          <p className="text-sm font-semibold">Лимит бесплатного тарифа</p>
-          <p className="mt-1 text-xs text-muted">
-            Premium — постоянная персонализация, не просто «больше кнопок».
+        <div className="mt-4 rounded-2xl border border-line px-4 py-4">
+          <p className="text-[15px] font-semibold">Лимит на сегодня</p>
+          <p className="mt-1 text-sm text-muted">
+            Premium даёт постоянный диалог без лимита.
           </p>
           <Button className="mt-3 w-full" onClick={unlockPremium}>
-            Включить Premium (демо)
+            Включить Premium
           </Button>
         </div>
       ) : (
@@ -100,24 +98,14 @@ export default function CoachPage() {
             onKeyDown={(e) => {
               if (e.key === "Enter") void send();
             }}
-            placeholder="Спроси что угодно…"
-            className="flex-1 rounded-2xl border border-line bg-bg-elevated px-3 py-3 text-sm outline-none focus:border-accent"
+            placeholder="Напиши…"
+            className="min-h-12 flex-1 rounded-2xl border border-line bg-bg-elevated px-4 text-[15px] outline-none focus:border-ink"
           />
-          <Button disabled={busy} onClick={() => void send()}>
-            {busy ? "…" : "Отправить"}
+          <Button disabled={busy || !text.trim()} onClick={() => void send()}>
+            →
           </Button>
         </div>
       )}
-      {busy ? (
-        <p className="mt-1 text-center text-[11px] text-muted">
-          DeepSeek думает…
-        </p>
-      ) : null}
-      {subscription.plan === "free" ? (
-        <p className="mt-1 text-center text-[11px] text-muted">
-          Коуч {subscription.coachMessagesUsed}/{subscription.coachMessagesLimit}
-        </p>
-      ) : null}
     </Screen>
   );
 }

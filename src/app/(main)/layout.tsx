@@ -23,7 +23,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   if (!hydrated) {
     return (
       <div className="app-shell flex min-h-dvh items-center justify-center">
-        <p className="font-display text-3xl">FORMA</p>
+        <p className="font-display text-3xl">Forma</p>
       </div>
     );
   }

@@ -1,39 +1,36 @@
 "use client";
 
-import { Button, Chip, Screen, SectionTitle, SliderField } from "@/components/ui";
+import { Button, Chip, Screen } from "@/components/ui";
 import { useFormaStore } from "@/lib/store";
-import type { Motivator, WhyOption } from "@/lib/types";
+import type { WhyOption } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const WHY: { id: WhyOption; label: string }[] = [
-  { id: "energy", label: "Больше энергии" },
+  { id: "energy", label: "Энергия" },
   { id: "sleep", label: "Сон" },
-  { id: "fitness", label: "Физическая форма" },
-  { id: "nutrition", label: "Питание" },
   { id: "smoking", label: "Курение" },
-  { id: "alcohol", label: "Алкоголь" },
+  { id: "fitness", label: "Движение" },
   { id: "stress", label: "Стресс" },
-  { id: "productivity", label: "Продуктивность" },
+  { id: "productivity", label: "Фокус" },
   { id: "discipline", label: "Дисциплина" },
-  { id: "relationships", label: "Отношения" },
-  { id: "confidence", label: "Уверенность" },
-  { id: "appearance", label: "Внешний вид" },
-  { id: "focus", label: "Концентрация" },
   { id: "other", label: "Другое" },
 ];
 
-const MOTIVATORS: { id: Motivator; label: string }[] = [
-  { id: "visible_progress", label: "Видимый прогресс" },
-  { id: "streaks", label: "Серии / momentum" },
-  { id: "achievements", label: "Достижения" },
-  { id: "statistics", label: "Статистика" },
-  { id: "ai_feedback", label: "Обратная связь AI" },
-  { id: "narrative", label: "История изменений" },
-  { id: "competition", label: "Соревнование" },
-  { id: "rewards", label: "Награды" },
+const BLOCKERS = [
+  "Мало сплю",
+  "Телефон с утра",
+  "Курю",
+  "Нет движения",
+  "Вечно бросаю на 3-й день",
 ];
+
+type Reveal = {
+  priorities: string[];
+  summary: string;
+  tasks: string[];
+};
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -45,85 +42,151 @@ export default function OnboardingPage() {
   const setName = useFormaStore((s) => s.setName);
   const setWhy = useFormaStore((s) => s.setWhy);
   const why = useFormaStore((s) => s.why);
-  const currentState = useFormaStore((s) => s.currentState);
   const setCurrentState = useFormaStore((s) => s.setCurrentState);
-  const behavior = useFormaStore((s) => s.behavior);
   const setBehavior = useFormaStore((s) => s.setBehavior);
-  const constraints = useFormaStore((s) => s.constraints);
   const setConstraints = useFormaStore((s) => s.setConstraints);
-  const goals = useFormaStore((s) => s.goals);
   const setGoals = useFormaStore((s) => s.setGoals);
-  const motivators = useFormaStore((s) => s.motivators);
   const setMotivators = useFormaStore((s) => s.setMotivators);
   const completeOnboarding = useFormaStore((s) => s.completeOnboarding);
   const user = useFormaStore((s) => s.user);
+  const lifeProfile = useFormaStore((s) => s.lifeProfile);
+  const plans = useFormaStore((s) => s.plans);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [goalText, setGoalText] = useState("");
-  const [customWhy, setCustomWhy] = useState("");
+  const [energy, setEnergy] = useState(5);
+  const [sleep, setSleep] = useState(5);
+  const [blockers, setBlockers] = useState<string[]>([]);
+  const [minutes, setMinutes] = useState(20);
+  const [reveal, setReveal] = useState<Reveal | null>(null);
 
   useEffect(() => {
     if (!hydrated) return;
-    if (completed) router.replace("/today");
-  }, [hydrated, completed, router]);
+    if (completed && !reveal) router.replace("/today");
+  }, [hydrated, completed, reveal, router]);
 
   if (!hydrated) {
     return (
       <div className="app-shell flex min-h-dvh items-center justify-center">
-        <p className="font-display text-3xl">FORMA</p>
+        <p className="font-display text-3xl">Forma</p>
       </div>
+    );
+  }
+
+  function toggleBlocker(b: string) {
+    setBlockers((prev) =>
+      prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b],
     );
   }
 
   async function finish() {
     setBusy(true);
     setError(null);
+    setWhy({ selected: why.selected });
+    setCurrentState({
+      energy,
+      sleep,
+      mood: energy,
+      stress: blockers.includes("Вечно бросаю на 3-й день") ? 6 : 4,
+      activity: blockers.includes("Нет движения") ? 3 : 5,
+      habits: blockers.includes("Курю") ? 3 : 5,
+    });
+    setBehavior({
+      sleepHours: sleep <= 4 ? 5.5 : sleep >= 7 ? 7.5 : 6.5,
+      phoneHours: blockers.includes("Телефон с утра") ? 6 : 3,
+      habitsToChange: blockers,
+      whyFailed: blockers.includes("Вечно бросаю на 3-й день")
+        ? "Бросаю на 3-й день"
+        : "",
+      triedBefore: blockers.join(", "),
+    });
+    setConstraints({
+      minutesPerDay: minutes,
+      difficulty: 1,
+      preferTiny: minutes <= 20,
+      avoid: [],
+      limits: "",
+    });
+    setGoals(
+      why.selected.slice(0, 2).map((w, i) => ({
+        id: uid("g"),
+        title: WHY.find((x) => x.id === w)?.label ?? w,
+        area:
+          w === "fitness"
+            ? "physical"
+            : w === "smoking"
+              ? "habits"
+              : w === "stress"
+                ? "mind"
+                : w === "productivity"
+                  ? "productivity"
+                  : w === "sleep"
+                    ? "sleep"
+                    : "energy",
+        priority: i + 1,
+      })),
+    );
+    setMotivators(["visible_progress", "ai_feedback"]);
+
     try {
       await completeOnboarding();
-      router.push("/today");
+      const profile = useFormaStore.getState().lifeProfile;
+      const plan = useFormaStore.getState().plans.at(-1);
+      const label = (key?: string) =>
+        profile?.areas.find((a) => a.key === key)?.label ?? key ?? "";
+      setReveal({
+        priorities: [
+          label(profile?.priorityArea),
+          label(profile?.secondaryArea),
+          profile?.strategy[0] ? "Маленькие шаги каждый день" : "",
+        ].filter(Boolean),
+        summary:
+          profile?.summary ||
+          "Не нужно чинить всё сразу. Начнём с малого.",
+        tasks: (plan?.tasks ?? []).slice(0, 4).map((t) => t.title),
+      });
+      setOnboardingStep(5);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "DeepSeek не ответил. Проверь сеть и нажми ещё раз.",
+          : "Что-то пошло не так. План можно собрать ещё раз.",
       );
     } finally {
       setBusy(false);
     }
   }
 
+  // silence unused after complete
+  void lifeProfile;
+  void plans;
+
   return (
-    <Screen className="pb-10">
+    <Screen showHeader={false} className="pb-10">
       {step === 0 ? (
-        <div className="flex min-h-[80dvh] flex-col justify-between">
-          <div className="rise pt-10">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
-              FORMA
-            </p>
-            <h1 className="font-display mt-4 text-[2.6rem] leading-[1.05] tracking-tight">
-              Становись лучше —
+        <div className="flex min-h-[78dvh] flex-col justify-between pt-8">
+          <div className="rise">
+            <p className="text-sm font-medium tracking-wide text-muted">Forma</p>
+            <h1 className="font-display mt-5 text-[2.6rem] leading-[1.05] tracking-tight">
+              Скажи, чего хочешь.
               <br />
-              системно.
+              Forma разберётся, что делать.
             </h1>
-            <p className="mt-4 max-w-[32ch] text-sm leading-relaxed text-muted">
-              Не трекер привычек. Система: понять, что мешает → выбрать приоритет →
-              делать маленькие шаги → адаптироваться.
+            <p className="mt-4 max-w-[30ch] text-[15px] leading-relaxed text-muted">
+              Каждый день — один ясный план. Без дашбордов и десятка метрик.
             </p>
           </div>
-          <div className="rise rise-delay-2 space-y-3">
-            <label className="block">
-              <span className="mb-2 block text-sm text-ink-soft">Как тебя зовут?</span>
-              <input
-                value={user?.name ?? ""}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Константин"
-                className="w-full rounded-2xl border border-line bg-bg-elevated px-4 py-3 text-base outline-none focus:border-accent"
-              />
-            </label>
+          <div className="space-y-4">
+            <input
+              value={user?.name ?? ""}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Как тебя зовут?"
+              className="w-full rounded-2xl border border-line bg-bg-elevated px-4 py-3.5 text-[16px] outline-none focus:border-ink"
+            />
             <Button
               className="w-full"
               onClick={() => {
-                if (!user?.name) setName("Константин");
+                if (!(user?.name || "").trim()) setName("Константин");
                 startOnboarding();
               }}
             >
@@ -134,82 +197,79 @@ export default function OnboardingPage() {
       ) : null}
 
       {step === 1 ? (
-        <div className="rise">
-          <SectionTitle
-            eyebrow="Этап 1"
-            title="Что хочешь изменить?"
-            subtitle="Можно несколько. Потом сузим."
-          />
-          <div className="flex flex-wrap gap-2">
-            {WHY.map((w) => {
-              const active = why.selected.includes(w.id);
-              return (
-                <Chip
-                  key={w.id}
-                  active={active}
-                  onClick={() => {
-                    const selected = active
-                      ? why.selected.filter((x) => x !== w.id)
-                      : [...why.selected, w.id];
-                    setWhy({ ...why, selected });
-                  }}
-                >
-                  {w.label}
-                </Chip>
-              );
-            })}
+        <div className="rise pt-4">
+          <p className="text-sm text-muted">1 / 4 · Зачем</p>
+          <h1 className="font-display mt-3 text-[2.1rem] leading-tight">
+            Что хочешь изменить?
+          </h1>
+          <div className="mt-8 flex flex-wrap gap-2">
+            {WHY.map((w) => (
+              <Chip
+                key={w.id}
+                active={why.selected.includes(w.id)}
+                onClick={() => {
+                  const selected = why.selected.includes(w.id)
+                    ? why.selected.filter((x) => x !== w.id)
+                    : [...why.selected, w.id].slice(0, 3);
+                  setWhy({ selected });
+                }}
+              >
+                {w.label}
+              </Chip>
+            ))}
           </div>
-          <input
-            className="mt-4 w-full rounded-2xl border border-line bg-bg-elevated px-4 py-3 text-sm outline-none focus:border-accent"
-            placeholder="Своими словами…"
-            value={customWhy}
-            onChange={(e) => {
-              setCustomWhy(e.target.value);
-              setWhy({ ...why, custom: e.target.value });
-            }}
-          />
-          <Button
-            className="mt-6 w-full"
-            disabled={!why.selected.length && !customWhy}
-            onClick={() => setOnboardingStep(2)}
-          >
-            Дальше
-          </Button>
+          <div className="mt-10 flex gap-2">
+            <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(0)}>
+              Назад
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={why.selected.length === 0}
+              onClick={() => setOnboardingStep(2)}
+            >
+              Дальше
+            </Button>
+          </div>
         </div>
       ) : null}
 
       {step === 2 ? (
-        <div className="rise">
-          <SectionTitle
-            eyebrow="Этап 2"
-            title="Как сейчас"
-            subtitle="Честно. Это не оценка, а точка отсчёта."
-          />
-          <div className="card space-y-5 p-4">
-            {(
-              [
-                ["sleep", "Сон"],
-                ["energy", "Энергия"],
-                ["mood", "Настроение"],
-                ["stress", "Стресс"],
-                ["activity", "Движение"],
-                ["nutrition", "Питание"],
-                ["habits", "Контроль привычек"],
-                ["work", "Работа / учёба"],
-                ["social", "Социальная жизнь"],
-                ["control", "Ощущение контроля"],
-                ["satisfaction", "Удовлетворённость"],
-              ] as const
-            ).map(([key, label]) => (
-              <SliderField
-                key={key}
-                label={label}
-                value={currentState[key]}
-                onChange={(v) => setCurrentState({ [key]: v })}
+        <div className="rise pt-4">
+          <p className="text-sm text-muted">2 / 4 · Сейчас</p>
+          <h1 className="font-display mt-3 text-[2.1rem] leading-tight">
+            Как дела прямо сейчас?
+          </h1>
+          <div className="mt-10 space-y-8">
+            <label className="block">
+              <div className="mb-3 flex justify-between text-[15px]">
+                <span>Энергия</span>
+                <span className="text-muted">{energy}/10</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={energy}
+                onChange={(e) => setEnergy(Number(e.target.value))}
+                className="w-full accent-[var(--accent)]"
               />
-            ))}
+            </label>
+            <label className="block">
+              <div className="mb-3 flex justify-between text-[15px]">
+                <span>Сон</span>
+                <span className="text-muted">{sleep}/10</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={sleep}
+                onChange={(e) => setSleep(Number(e.target.value))}
+                className="w-full accent-[var(--accent)]"
+              />
+            </label>
           </div>
-          <div className="mt-5 flex gap-2">
+          <div className="mt-10 flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(1)}>
               Назад
             </Button>
@@ -221,60 +281,23 @@ export default function OnboardingPage() {
       ) : null}
 
       {step === 3 ? (
-        <div className="rise">
-          <SectionTitle eyebrow="Этап 3" title="Поведение" subtitle="Как устроена обычная неделя." />
-          <div className="card space-y-5 p-4">
-            <SliderField
-              label={`Сон, часов: ${behavior.sleepHours}`}
-              value={behavior.sleepHours}
-              min={4}
-              max={10}
-              onChange={(v) => setBehavior({ sleepHours: v })}
-            />
-            <SliderField
-              label="Стабильность режима"
-              value={behavior.sleepStable}
-              onChange={(v) => setBehavior({ sleepStable: v })}
-            />
-            <SliderField
-              label={`Телефон, часов/день: ${behavior.phoneHours}`}
-              value={behavior.phoneHours}
-              min={1}
-              max={12}
-              onChange={(v) => setBehavior({ phoneHours: v })}
-            />
-            <SliderField
-              label={`Движение, минут: ${behavior.movementMinutes}`}
-              value={behavior.movementMinutes}
-              min={0}
-              max={120}
-              onChange={(v) => setBehavior({ movementMinutes: v })}
-            />
-            <SliderField
-              label="Дисциплина"
-              value={behavior.discipline}
-              onChange={(v) => setBehavior({ discipline: v })}
-            />
-            <label className="block text-sm">
-              <span className="mb-2 block text-ink-soft">Что уже пробовал?</span>
-              <textarea
-                className="w-full rounded-xl border border-line bg-bg px-3 py-2 outline-none focus:border-accent"
-                rows={2}
-                value={behavior.triedBefore}
-                onChange={(e) => setBehavior({ triedBefore: e.target.value })}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-2 block text-ink-soft">Почему обычно бросаешь?</span>
-              <textarea
-                className="w-full rounded-xl border border-line bg-bg px-3 py-2 outline-none focus:border-accent"
-                rows={2}
-                value={behavior.whyFailed}
-                onChange={(e) => setBehavior({ whyFailed: e.target.value })}
-              />
-            </label>
+        <div className="rise pt-4">
+          <p className="text-sm text-muted">3 / 4 · Помехи</p>
+          <h1 className="font-display mt-3 text-[2.1rem] leading-tight">
+            Что чаще всего мешает?
+          </h1>
+          <div className="mt-8 flex flex-wrap gap-2">
+            {BLOCKERS.map((b) => (
+              <Chip
+                key={b}
+                active={blockers.includes(b)}
+                onClick={() => toggleBlocker(b)}
+              >
+                {b}
+              </Chip>
+            ))}
           </div>
-          <div className="mt-5 flex gap-2">
+          <div className="mt-10 flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(2)}>
               Назад
             </Button>
@@ -286,144 +309,77 @@ export default function OnboardingPage() {
       ) : null}
 
       {step === 4 ? (
-        <div className="rise">
-          <SectionTitle
-            eyebrow="Этап 4"
-            title="Ограничения"
-            subtitle="Реализм важнее амбиций."
-          />
-          <div className="card space-y-5 p-4">
-            <SliderField
-              label={`Минут в день: ${constraints.minutesPerDay}`}
-              value={constraints.minutesPerDay}
-              min={5}
-              max={90}
-              onChange={(v) => setConstraints({ minutesPerDay: v })}
-            />
-            <div>
-              <p className="mb-2 text-sm text-ink-soft">Сложность старта</p>
-              <div className="flex gap-2">
-                {([1, 2, 3] as const).map((d) => (
-                  <Chip
-                    key={d}
-                    active={constraints.difficulty === d}
-                    onClick={() => setConstraints({ difficulty: d })}
-                  >
-                    {d === 1 ? "Лёгкий" : d === 2 ? "Средний" : "Плотный"}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-            <Chip
-              active={constraints.preferTiny}
-              onClick={() => setConstraints({ preferTiny: !constraints.preferTiny })}
-            >
-              Предпочитаю крошечные ежедневные действия
-            </Chip>
-            <label className="block text-sm">
-              <span className="mb-2 block text-ink-soft">Чего категорически не хочу</span>
-              <input
-                className="w-full rounded-xl border border-line bg-bg px-3 py-2 outline-none focus:border-accent"
-                placeholder="Бег, медитация, трекер калорий…"
-                value={constraints.avoid.join(", ")}
-                onChange={(e) =>
-                  setConstraints({
-                    avoid: e.target.value
-                      .split(",")
-                      .map((x) => x.trim())
-                      .filter(Boolean),
-                  })
-                }
-              />
-            </label>
+        <div className="rise pt-4">
+          <p className="text-sm text-muted">4 / 4 · Реализм</p>
+          <h1 className="font-display mt-3 text-[2.1rem] leading-tight">
+            Сколько реально можешь в день?
+          </h1>
+          <div className="mt-10 grid grid-cols-3 gap-2">
+            {[10, 20, 40].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMinutes(m)}
+                className={`min-h-16 rounded-2xl border text-[15px] font-medium ${
+                  minutes === m
+                    ? "border-ink bg-ink text-white"
+                    : "border-line bg-bg-elevated text-ink-soft"
+                }`}
+              >
+                {m} мин
+              </button>
+            ))}
           </div>
-          <div className="mt-5 flex gap-2">
+          <div className="mt-10 flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(3)}>
               Назад
             </Button>
-            <Button className="flex-1" onClick={() => setOnboardingStep(5)}>
-              Дальше
+            <Button className="flex-1" disabled={busy} onClick={() => void finish()}>
+              {busy ? "Forma думает…" : "Собрать старт"}
             </Button>
           </div>
+          {busy ? (
+            <p className="mt-4 text-sm text-muted">
+              Обычно 10–40 секунд. Не закрывай экран.
+            </p>
+          ) : null}
+          {error ? <p className="mt-4 text-sm text-danger">{error}</p> : null}
         </div>
       ) : null}
 
-      {step === 5 ? (
-        <div className="rise">
-          <SectionTitle
-            eyebrow="Этап 5"
-            title="Цели"
-            subtitle="Не обязательно менять всё сразу. Выберем то, что даст эффект сейчас."
-          />
-          <div className="card p-4">
-            <div className="flex gap-2">
-              <input
-                className="flex-1 rounded-xl border border-line bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
-                placeholder="Например: стабильный сон"
-                value={goalText}
-                onChange={(e) => setGoalText(e.target.value)}
-              />
-              <Button
-                variant="soft"
-                onClick={() => {
-                  if (!goalText.trim()) return;
-                  setGoals([
-                    ...goals,
-                    {
-                      id: uid("goal"),
-                      title: goalText.trim(),
-                      area: "general",
-                      priority: goals.length + 1,
-                    },
-                  ]);
-                  setGoalText("");
-                }}
-              >
-                Добавить
-              </Button>
-            </div>
-            <ul className="mt-4 space-y-2">
-              {goals.map((g) => (
-                <li key={g.id} className="rounded-xl bg-bg px-3 py-2 text-sm">
-                  {g.title}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <p className="mt-5 text-sm text-muted">Что тебя мотивирует?</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {MOTIVATORS.map((m) => (
-              <Chip
-                key={m.id}
-                active={motivators.includes(m.id)}
-                onClick={() => {
-                  setMotivators(
-                    motivators.includes(m.id)
-                      ? motivators.filter((x) => x !== m.id)
-                      : [...motivators, m.id],
-                  );
-                }}
-              >
-                {m.label}
-              </Chip>
+      {step === 5 && reveal ? (
+        <div className="rise pt-4">
+          <p className="text-sm text-muted">С чего начнём</p>
+          <h1 className="font-display mt-3 text-[2.2rem] leading-tight">
+            Не надо чинить всё сразу
+          </h1>
+          <p className="mt-4 max-w-[34ch] text-[15px] leading-relaxed text-muted">
+            {reveal.summary}
+          </p>
+          <ol className="mt-8 space-y-3">
+            {reveal.priorities.slice(0, 3).map((p, i) => (
+              <li key={p} className="text-[18px] font-medium">
+                {i + 1}. {p}
+              </li>
             ))}
-          </div>
-          <div className="mt-6 flex gap-2">
-            <Button variant="ghost" className="flex-1" onClick={() => setOnboardingStep(4)}>
-              Назад
-            </Button>
-            <Button className="flex-1" disabled={busy} onClick={() => void finish()}>
-              {busy ? "DeepSeek собирает профиль…" : "Собрать Personal State"}
-            </Button>
-          </div>
-          {error ? (
-            <p className="mt-3 text-sm text-danger">{error}</p>
+          </ol>
+          {reveal.tasks.length > 0 ? (
+            <>
+              <p className="mt-10 text-sm font-semibold uppercase tracking-[0.12em] text-muted">
+                Первые шаги
+              </p>
+              <ul className="mt-3 space-y-3">
+                {reveal.tasks.map((t) => (
+                  <li key={t} className="text-[16px] text-ink-soft">
+                    · {t}
+                  </li>
+                ))}
+              </ul>
+            </>
           ) : null}
-          {busy ? (
-            <p className="mt-3 text-xs text-muted">
-              Обычно 10–40 секунд. Не закрывай экран — это живой Timeweb DeepSeek, не заглушка.
-            </p>
-          ) : null}
+          <Button className="mt-10 w-full" onClick={() => router.push("/today")}>
+            К сегодняшнему плану
+          </Button>
         </div>
       ) : null}
     </Screen>
