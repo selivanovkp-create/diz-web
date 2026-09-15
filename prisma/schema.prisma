@@ -1,0 +1,249 @@
+// FORMA — canonical data model
+// Runtime MVP uses client store matching these entities.
+// Switch provider to postgresql when ready for hosted DB.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String?  @unique
+  name          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  profile       UserProfile?
+  goals         Goal[]
+  lifeAreas     LifeArea[]
+  checkIns      CheckIn[]
+  habits        Habit[]
+  tasks         Task[]
+  insights      AIInsight[]
+  recommendations AIRecommendation[]
+  dailyPlans    DailyPlan[]
+  achievements  Achievement[]
+  progress      UserProgress?
+  journal       JournalEntry[]
+  subscription  Subscription?
+  featureUsage  FeatureUsage[]
+  conversations AIConversation[]
+  events        AnalyticsEvent[]
+}
+
+model UserProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whyAreas            String // JSON string[]
+  whyCustom           String?
+  currentState        String // JSON scores
+  behavior            String // JSON behavior answers
+  constraints         String // JSON constraints
+  motivationalProfile String // JSON motivators[]
+  personalState       String // JSON LifeProfile snapshot
+  onboardingCompleted Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  area        String
+  priority    Int      @default(3)
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LifeArea {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key         String
+  score       Int
+  trend       String
+  confidence  Float
+  problems    String // JSON
+  goals       String // JSON
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, key])
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
+  energy    Int
+  mood      Int
+  sleep     Int
+  stress    Int
+  activity  Int
+  focus     Int
+  drive     Int
+  habits    Int
+  control   Int
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+}
+
+model Habit {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  category    String
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId      String?
+  plan        DailyPlan? @relation(fields: [planId], references: [id])
+  title       String
+  detail      String?
+  category    String
+  difficulty  Int
+  durationMin Int?
+  why         String?
+  xp          Int      @default(10)
+  status      String   @default("pending")
+  date        String
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  completions TaskCompletion[]
+}
+
+model TaskCompletion {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  completed Boolean
+  at        DateTime @default(now())
+}
+
+model AIInsight {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
+  type      String
+  title     String
+  body      String
+  priority  String?
+  createdAt DateTime @default(now())
+}
+
+model AIRecommendation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payload   String
+  createdAt DateTime @default(now())
+}
+
+model DailyPlan {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           String
+  focusArea      String
+  reason         String
+  motivation     String
+  difficultyMode String
+  tasks          Task[]
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, date])
+}
+
+model Achievement {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key        String
+  title      String
+  unlockedAt DateTime @default(now())
+
+  @@unique([userId, key])
+}
+
+model UserProgress {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  levelTitle    String   @default("Starting Point")
+  momentumDays  Int      @default(0)
+  lastActiveDate String?
+  totalTasks    Int      @default(0)
+  completedTasks Int     @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  date      String
+  createdAt DateTime @default(now())
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan      String   @default("free")
+  status    String   @default("active")
+  renewsAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FeatureUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature   String
+  count     Int      @default(0)
+  period    String
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, feature, period])
+}
+
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name      String
+  props     String?
+  createdAt DateTime @default(now())
+}
