@@ -1,14 +1,21 @@
 import type { AIContext } from "@/lib/ai/service";
+import { primaryWhy, whyLabel, whyLabels } from "@/lib/plot";
 import type { CheckInData } from "@/lib/types";
 
-const SYSTEM_BASE = `Ты — AI-движок продукта FORMA (wellness / personal improvement).
+const SYSTEM_BASE = `Ты — AI-движок продукта FORMA (личная система изменений).
 Отвечай ТОЛЬКО валидным JSON без markdown и пояснений.
 Язык всех текстовых полей — русский.
 Тон: коротко, по-человечески, уверенно, без токсичной мотивации и без инфантильности.
 НЕ ставь медицинских диагнозов. НЕ назначай лекарства.
 Если речь о серьёзных симптомах — recommendProfessionalHelp / safetyTriggered.
 Задачи должны быть маленькими, конкретными, выполнимыми сегодня.
-Life area keys: energy|sleep|physical|mind|productivity|habits|social|lifestyle.`;
+Life area keys: energy|sleep|physical|mind|productivity|habits|social|lifestyle.
+
+ГЛАВНОЕ ПРАВИЛО СЮЖЕТА:
+- why.selected / whyLabels / primaryWhy — источник правды о потребностях пользователя.
+- priority, tasks, insight, strategy, relatedArea должны следовать теме онбординга.
+- Низкая энергия/ресурс на план (capacity) только уменьшает нагрузку (ease), НЕ меняет тему на сон/энергию, если пользователь не выбирал их в why.
+- Не подсовывай курение/сон/энергию как дефолт, если это не why пользователя.`;
 
 export function systemFor(action: string) {
   return `${SYSTEM_BASE}\nДействие: ${action}`;
@@ -20,9 +27,13 @@ export function compactContext(ctx: AIContext) {
   const checkIns = ctx.checkIns ?? [];
   const recentTasks = ctx.recentTasks ?? [];
   const journal = ctx.journal ?? [];
+  const selected = ctx.why?.selected ?? [];
   return {
     name: ctx.name,
     why: ctx.why,
+    whyLabels: whyLabels(selected),
+    primaryWhy: primaryWhy(selected),
+    primaryWhyLabel: whyLabel(primaryWhy(selected)),
     currentState: ctx.currentState,
     behavior: {
       sleepHours: behavior.sleepHours,
@@ -57,66 +68,67 @@ export const PROMPTS = {
     `Собери Personal State после onboarding.
 Верни КОМПАКТНЫЙ JSON (короткие строки, без воды):
 {
-  "priority": LifeAreaKey,
+  "priority": LifeAreaKey (должен соответствовать primaryWhy / why.selected),
   "secondary": LifeAreaKey,
-  "reason": string (<=180 chars),
+  "reason": string (<=180 chars, явно про тему why),
   "confidence": 0..1,
-  "strategy": string[2..4] (каждый <=100 chars),
+  "strategy": string[2..4] (каждый <=100 chars, про why),
   "areas": ровно 8 объектов для energy|sleep|physical|mind|productivity|habits|social|lifestyle,
     каждый: { "key", "score":0..100, "trend":"up|down|stable", "confidence":0..1,
               "problems": string[0..2], "goals": string[0..2] },
   "summary": string (<=160 chars)
 }
 Контекст: ${JSON.stringify(compactContext(ctx))}
-Важно: если в why.custom / behavior.whyFailed / constraints.limits / journal есть свободный текст пользователя — опирайся на него в первую очередь при выборе priority и strategy.`,
+Важно: why.selected — главный приоритет. Свободный текст (why.custom / whyFailed / journal) уточняет, но не отменяет тему.`,
 
   dailyPlan: (ctx: AIContext) =>
-    `Сгенерируй план на сегодня (2–4 задачи).
+    `Сгенерируй план на сегодня (2–4 задачи) СТРОГО под why.selected / primaryWhyLabel.
 КОМПАКТНЫЙ JSON:
 {
-  "priority": LifeAreaKey,
-  "reason": string (<=180),
+  "priority": LifeAreaKey (из темы why, не дефолт energy),
+  "reason": string (<=180, про тему why),
   "confidence": 0..1,
   "difficultyMode": "ease|hold|push",
   "motivation": string (<=120),
-  "tasks": [{ "title" (коротко, конкретно), "detail?" (как сделать, 1 фраза), "duration"?: number минут, "difficulty":1..5, "category", "why" (1 фраза: почему именно тебе сегодня и что даст), "xp":5..50 }]
+  "tasks": [{ "title", "detail?", "duration"?, "difficulty":1..5, "category", "why" (личная польза по теме why), "xp":5..50 }]
 }
-why обязателен: личная польза, не общая мотивация.
-Если энергия/сон низкие — ease и меньше задач.
-Если есть свободный текст пользователя (why.custom / whyFailed / journal) — задачи должны отвечать именно на него.
+Если ресурс/энергия низкие — ease и меньше задач, НО задачи всё равно про тему why.
+Не предлагай сон/курение/энергию, если это не в why.selected.
 Контекст: ${JSON.stringify(compactContext(ctx))}`,
 
   checkIn: (ctx: AIContext, checkIn: CheckInData) =>
-    `Проанализируй сегодняшний чек-ин.
+    `Проанализируй сегодняшний сигнал (чек-ин) относительно темы why.
 Верни JSON:
-{ "primaryIssue": LifeAreaKey, "secondaryIssue"?: LifeAreaKey, "insight": string, "loadAdvice":"reduce|keep|increase", "confidence":0..1 }
+{ "primaryIssue": LifeAreaKey (тема why), "secondaryIssue"?: LifeAreaKey, "insight": string, "loadAdvice":"reduce|keep|increase", "confidence":0..1 }
 Чек-ин: ${JSON.stringify(checkIn)}
-Контекст: ${JSON.stringify(compactContext(ctx))}`,
+Контекст: ${JSON.stringify(compactContext(ctx))}
+loadAdvice смотри на capacity/energy и фокус темы; primaryIssue = тема why.`,
 
   progress: (ctx: AIContext) =>
-    `Краткий анализ прогресса.
+    `Краткий анализ прогресса по теме why (не общий wellness).
 Верни JSON: { "summary", "wins":string[], "risks":string[], "nextMove":string }
 Контекст: ${JSON.stringify(compactContext(ctx))}`,
 
   motivation: (ctx: AIContext) =>
-    `Одна мотивационная фраза на сегодня (не банальная).
+    `Одна мотивационная фраза на сегодня про тему why (не банальная).
 Верни JSON: { "message": string, "tone":"steady|direct|warm|ironic" }
 Контекст: ${JSON.stringify(compactContext(ctx))}`,
 
   difficulty: (ctx: AIContext) =>
-    `Подстрой сложность.
+    `Подстрой сложность под ресурс, не меняя тему why.
 Верни JSON: { "mode":"ease|hold|push", "taskCount":1..5, "reason":string }
 Контекст: ${JSON.stringify(compactContext(ctx))}`,
 
   coach: (ctx: AIContext, message: string) =>
-    `Ответ AI Coach на сообщение пользователя с учётом профиля.
+    `Ответ AI Coach с опорой на why.selected / primaryWhyLabel.
 Верни JSON:
 { "reply": string, "safetyTriggered": boolean, "suggestProfessionalHelp": boolean, "relatedArea"?: LifeAreaKey }
 Сообщение: ${JSON.stringify(message)}
-Контекст: ${JSON.stringify(compactContext(ctx))}`,
+Контекст: ${JSON.stringify(compactContext(ctx))}
+Не уводи разговор в сон/энергию, если пользователь про другое.`,
 
   weekly: (ctx: AIContext) =>
-    `Недельный обзор.
+    `Недельный обзор по теме why.
 Верни JSON:
 {
   "completionRate": number,
@@ -126,5 +138,6 @@ why обязателен: личная польза, не общая мотив�
   "aiNote": string,
   "areaDeltas": [{ "key": LifeAreaKey, "label": string, "delta": number }]
 }
-Контекст: ${JSON.stringify(compactContext(ctx))}`,
+Контекст: ${JSON.stringify(compactContext(ctx))}
+biggestWin / needsAttention / nextFocus — про why, не про случайный сон.`,
 };

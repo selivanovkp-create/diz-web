@@ -4,7 +4,7 @@ import { TaskCard } from "@/components/TaskCard";
 import { Button, Screen } from "@/components/ui";
 import { todayISO } from "@/lib/gamification";
 import { useFormaStore } from "@/lib/store";
-import { CHECKIN_BY_WHY, primaryWhy } from "@/lib/checkin-plot";
+import { CHECKIN_BY_WHY, primaryWhy } from "@/lib/plot";
 import { focusDeltaLabel, greeting, todayStateLine } from "@/lib/utils";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";

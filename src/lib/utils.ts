@@ -3,7 +3,7 @@ import {
   CHECKIN_BY_WHY,
   focusScoreFromCheckIn,
   primaryWhy,
-} from "@/lib/checkin-plot";
+} from "@/lib/plot";
 import type { CheckInData, WhyOption } from "@/lib/types";
 
 export function cn(...inputs: ClassValue[]) {
@@ -24,7 +24,7 @@ export function pct(n: number) {
   return `${Math.round(n)}%`;
 }
 
-/** Short human state line for Today — tied to capacity + focus. */
+/** Short human state line for Today — capacity + focus from onboarding why. */
 export function todayStateLine(
   checkIn?: CheckInData | null,
   whySelected: WhyOption[] = [],
@@ -32,11 +32,19 @@ export function todayStateLine(
   const why = primaryWhy(whySelected);
   const label = CHECKIN_BY_WHY[why].label;
   if (!checkIn) return `Отметь сигнал по «${label}» — план подстроится.`;
-  const e = checkIn.energy;
-  if (e <= 3) return `Мало сил на «${label}» — держим план лёгким.`;
-  if (e <= 5) return `Нормальный день по «${label}». Закрой пару простых шагов.`;
-  if (e <= 7) return `По «${label}» держишься. Не раздувай день.`;
-  return `Есть запас по «${label}». Не раздувай день.`;
+  const capacity = checkIn.energy;
+  const focus = focusScoreFromCheckIn(checkIn, why);
+  if (capacity <= 3) {
+    return `Мало сил — план лёгкий, но всё ещё про «${label}».`;
+  }
+  if (focus <= 3) {
+    return `По «${label}» сегодня тяжело. Один–два маленьких шага достаточно.`;
+  }
+  if (focus <= 5 || capacity <= 5) {
+    return `Нормальный день по «${label}». Закрой пару простых шагов.`;
+  }
+  if (focus <= 7) return `По «${label}» держишься. Не раздувай день.`;
+  return `По «${label}» есть запас. Не раздувай день.`;
 }
 
 export function focusDeltaLabel(

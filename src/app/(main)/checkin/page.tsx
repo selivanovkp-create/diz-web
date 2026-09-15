@@ -6,7 +6,7 @@ import {
   CHECKIN_BY_WHY,
   primaryWhy,
   type SignalLevel,
-} from "@/lib/checkin-plot";
+} from "@/lib/plot";
 import { useFormaStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -60,7 +60,8 @@ export default function CheckInPage() {
         note,
       });
       await saveCheckIn(payload);
-      if (capacity === "low" || (why === "sleep" && focus === "low")) {
+      // Low capacity or weak focus on the user's theme → reshape plan.
+      if (capacity === "low" || focus === "low") {
         try {
           await regenerateTodayPlan();
         } catch {

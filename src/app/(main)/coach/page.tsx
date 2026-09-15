@@ -1,25 +1,23 @@
 "use client";
 
 import { Button, Screen } from "@/components/ui";
+import { coachChipsFor, whyLabel, primaryWhy } from "@/lib/plot";
 import { canUseCoach } from "@/lib/subscription";
 import { useFormaStore } from "@/lib/store";
-import { useEffect, useRef, useState } from "react";
-
-const PROMPTS = [
-  "Почему я постоянно устаю?",
-  "Помоги бросить курить",
-  "Что мне делать сегодня?",
-  "Просто поговорить",
-];
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function CoachPage() {
   const coach = useFormaStore((s) => s.coach);
   const sendCoachMessage = useFormaStore((s) => s.sendCoachMessage);
   const subscription = useFormaStore((s) => s.subscription);
   const unlockPremium = useFormaStore((s) => s.unlockPremium);
+  const whySelected = useFormaStore((s) => s.why.selected);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  const chips = useMemo(() => coachChipsFor(whySelected), [whySelected]);
+  const focusLabel = whyLabel(primaryWhy(whySelected));
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -42,13 +40,13 @@ export default function CoachPage() {
         Коуч
       </h1>
       <p className="mt-2 max-w-[32ch] text-[15px] text-muted">
-        Что хочешь разобрать?
+        Разбираем «{focusLabel}» — твою тему из онбординга.
       </p>
 
       <div className="mt-6 flex-1 space-y-3">
         {coach.length === 0 ? (
           <div className="flex flex-col gap-2">
-            {PROMPTS.map((p) => (
+            {chips.map((p) => (
               <button
                 key={p}
                 type="button"
@@ -59,6 +57,14 @@ export default function CoachPage() {
                 {p}
               </button>
             ))}
+            <button
+              type="button"
+              disabled={!allowed || busy}
+              onClick={() => void send("Просто поговорить")}
+              className="rounded-2xl border border-line bg-bg-elevated px-4 py-3.5 text-left text-[15px] text-ink-soft transition active:scale-[0.99] disabled:opacity-40"
+            >
+              Просто поговорить
+            </button>
           </div>
         ) : null}
 

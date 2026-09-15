@@ -490,12 +490,9 @@ export default function OnboardingPage() {
       await completeOnboarding();
       const profile = useFormaStore.getState().lifeProfile;
       const plan = useFormaStore.getState().plans.at(-1);
-      const label = (key?: string) =>
-        profile?.areas.find((a) => a.key === key)?.label ?? key ?? "";
       setReveal({
         priorities: [
-          label(profile?.priorityArea),
-          label(profile?.secondaryArea),
+          ...selected.map((w) => WHY.find((x) => x.id === w)?.label ?? w),
           profile?.strategy[0] ?? "",
         ].filter(Boolean),
         summary:

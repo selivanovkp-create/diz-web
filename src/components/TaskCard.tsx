@@ -1,20 +1,10 @@
 "use client";
 
+import { primaryWhy, taskWhyFallback } from "@/lib/plot";
 import { useFormaStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 import { motion } from "framer-motion";
-
-const WHY_FALLBACK: Record<string, string> = {
-  energy: "Поднимает дневной ресурс без героизма.",
-  sleep: "Чинит базу — завтра будет легче держать день.",
-  physical: "Короткое движение снимает застой и проясняет голову.",
-  mind: "Снимает шум в голове, чтобы осталось место на важное.",
-  productivity: "Один завершённый кусок даёт ощущение контроля.",
-  habits: "Маленький отказ от автопилота — и день уже другой.",
-  social: "Контакт с людьми обычно возвращает энергию.",
-  lifestyle: "Мелочь в режиме, которая складывается в систему.",
-};
 
 export function TaskCard({
   id,
@@ -36,14 +26,14 @@ export function TaskCard({
 }) {
   const completeTask = useFormaStore((s) => s.completeTask);
   const skipTask = useFormaStore((s) => s.skipTask);
+  const whySelected = useFormaStore((s) => s.why.selected);
   const done = status === "done";
   const skipped = status === "skipped";
 
   const explanation =
     why?.trim() ||
     detail?.trim() ||
-    WHY_FALLBACK[category || ""] ||
-    "Маленький шаг, который Forma выбрала под твоё состояние сегодня.";
+    taskWhyFallback(category, primaryWhy(whySelected));
 
   return (
     <motion.div

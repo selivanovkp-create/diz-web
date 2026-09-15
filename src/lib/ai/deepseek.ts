@@ -13,6 +13,7 @@ import {
   WeeklyReviewSchema,
   type DailyPlanAI,
 } from "@/lib/ai/schemas";
+import { primaryWhy, whyToArea } from "@/lib/plot";
 import type { CheckInData } from "@/lib/types";
 import type { ZodType } from "zod";
 
@@ -120,7 +121,7 @@ export class TimewebDeepSeekService implements AIService {
           reply: safetyCoachReply("medical"),
           safetyTriggered: true,
           suggestProfessionalHelp: true,
-          relatedArea: "energy",
+          relatedArea: whyToArea(primaryWhy(ctx.why?.selected ?? [])),
         }),
         source: "live" as const,
       };

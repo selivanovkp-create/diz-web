@@ -6,7 +6,9 @@ import {
   CHECKIN_BY_WHY,
   focusScoreFromCheckIn,
   primaryWhy,
-} from "@/lib/checkin-plot";
+  whyLabel,
+  whyToArea,
+} from "@/lib/plot";
 import { useFormaStore } from "@/lib/store";
 import { trendPct } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
@@ -55,14 +57,36 @@ export default function ProgressPage() {
   }, [plans]);
 
   const focusAreas = useMemo(() => {
+    // Prefer onboarding why labels as focus rings when we have check-ins.
+    if (whySelected.length > 0 && checkIns.length > 0) {
+      return whySelected.slice(0, 3).map((w) => {
+        const scores = checkIns
+          .slice(-7)
+          .map((c) => focusScoreFromCheckIn(c, w) * 10);
+        const value = scores.length
+          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+          : 0;
+        const trend = trendPct(scores);
+        return {
+          key: w,
+          label: whyLabel(w),
+          score: value,
+          trend: trend === null ? "stable" : trend > 0 ? "up" : trend < 0 ? "down" : "stable",
+        };
+      });
+    }
     const areas = lifeProfile?.areas ?? [];
+    const preferred = whySelected
+      .map((w) => areas.find((a) => a.key === whyToArea(w)))
+      .filter(Boolean);
+    if (preferred.length) return preferred.slice(0, 3);
     const priority = lifeProfile?.priorityArea;
     const secondary = lifeProfile?.secondaryArea;
-    const preferred = [priority, secondary]
+    return [priority, secondary]
       .map((k) => areas.find((a) => a.key === k))
-      .filter(Boolean);
-    return (preferred.length ? preferred : areas).slice(0, 3);
-  }, [lifeProfile]);
+      .filter(Boolean)
+      .slice(0, 3);
+  }, [lifeProfile, whySelected, checkIns]);
 
   useEffect(() => {
     if (checkIns.length >= 3 && !review) {
@@ -158,17 +182,17 @@ export default function ProgressPage() {
           {focusAreas.length > 0 ? (
             <section className="rise rise-delay-3 mt-10">
               <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
-                Твои фокусы
+                Твои темы из онбординга
               </h2>
               <p className="mt-2 max-w-[34ch] text-sm text-muted">
-                Насколько близко к «нормально» по приоритетам Forma. 100% —
+                Насколько близко к «нормально» по тому, что ты выбрал. 100% —
                 устойчивое состояние, не идеал.
               </p>
               <div className="mt-6 grid grid-cols-3 gap-2">
                 {focusAreas.map((a) =>
                   a ? (
                     <ProgressRing
-                      key={a.key}
+                      key={String(a.key)}
                       value={a.score}
                       size={88}
                       stroke={6}

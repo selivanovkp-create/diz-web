@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Screen } from "@/components/ui";
+import { whyLabel } from "@/lib/plot";
 import { useFormaStore } from "@/lib/store";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -8,6 +9,8 @@ import { useEffect, useState } from "react";
 export default function ProfilePage() {
   const user = useFormaStore((s) => s.user);
   const lifeProfile = useFormaStore((s) => s.lifeProfile);
+  const whySelected = useFormaStore((s) => s.why.selected);
+  const whyCustom = useFormaStore((s) => s.why.custom);
   const subscription = useFormaStore((s) => s.subscription);
   const unlockPremium = useFormaStore((s) => s.unlockPremium);
   const cancelPremium = useFormaStore((s) => s.cancelPremium);
@@ -39,22 +42,35 @@ export default function ProfilePage() {
       <div className="mt-10 space-y-8">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
-            С чего начинаем
+            Твой фокус из онбординга
           </p>
-          {lifeProfile ? (
+          {whySelected.length > 0 ? (
             <ul className="mt-3 space-y-2">
-              <li className="text-[17px] font-medium">
-                1. {lifeProfile.areas.find((a) => a.key === lifeProfile.priorityArea)?.label}
-              </li>
-              {lifeProfile.secondaryArea ? (
-                <li className="text-[17px] font-medium">
-                  2.{" "}
-                  {
-                    lifeProfile.areas.find((a) => a.key === lifeProfile.secondaryArea)
-                      ?.label
-                  }
+              {whySelected.map((w, i) => (
+                <li key={w} className="text-[17px] font-medium">
+                  {i + 1}. {whyLabel(w)}
+                </li>
+              ))}
+              {whyCustom ? (
+                <li className="mt-3 max-w-[34ch] text-[15px] text-ink-soft">
+                  {whyCustom}
                 </li>
               ) : null}
+              {lifeProfile?.strategy[0] ? (
+                <li className="mt-3 max-w-[34ch] text-[15px] text-ink-soft">
+                  {lifeProfile.strategy[0]}
+                </li>
+              ) : null}
+            </ul>
+          ) : lifeProfile ? (
+            <ul className="mt-3 space-y-2">
+              <li className="text-[17px] font-medium">
+                1.{" "}
+                {
+                  lifeProfile.areas.find((a) => a.key === lifeProfile.priorityArea)
+                    ?.label
+                }
+              </li>
               {lifeProfile.strategy[0] ? (
                 <li className="mt-3 max-w-[34ch] text-[15px] text-ink-soft">
                   {lifeProfile.strategy[0]}

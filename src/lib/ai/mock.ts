@@ -12,18 +12,18 @@ import {
   type InitialAssessment,
 } from "@/lib/ai/schemas";
 import { detectSafetyRisk, safetyCoachReply } from "@/lib/ai/safety";
-import type { CheckInData, LifeAreaKey } from "@/lib/types";
-
-const AREA_LABELS: Record<LifeAreaKey, string> = {
-  energy: "Энергия",
-  sleep: "Сон",
-  physical: "Движение",
-  mind: "Голова",
-  productivity: "Продуктивность",
-  habits: "Привычки",
-  social: "Социум",
-  lifestyle: "Образ жизни",
-};
+import {
+  AREA_LABELS,
+  focusScoreFromCheckIn,
+  primaryWhy,
+  strategiesFor,
+  tasksForWhy,
+  whyAreas,
+  whyLabel,
+  whyLabels,
+  whyToArea,
+} from "@/lib/plot";
+import type { CheckInData, LifeAreaKey, WhyOption } from "@/lib/types";
 
 function clamp(n: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(n)));
@@ -34,30 +34,9 @@ function avg(nums: number[]) {
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
-function whyToAreas(ctx: AIContext): LifeAreaKey[] {
-  const map: Record<string, LifeAreaKey> = {
-    energy: "energy",
-    sleep: "sleep",
-    fitness: "physical",
-    nutrition: "lifestyle",
-    smoking: "habits",
-    alcohol: "habits",
-    stress: "mind",
-    productivity: "productivity",
-    discipline: "productivity",
-    relationships: "social",
-    confidence: "mind",
-    appearance: "physical",
-    focus: "productivity",
-    other: "lifestyle",
-  };
-  return ctx.why.selected.map((w) => map[w] ?? "lifestyle");
-}
-
 function scoreAreas(ctx: AIContext): InitialAssessment["areas"] {
   const s = ctx.currentState;
   const b = ctx.behavior;
-  // Onboarding sliders are 1–10 → normalize to 0–100
   const n = (v: number) => clamp(v * 10);
   const base: Record<LifeAreaKey, number> = {
     energy: n(s.energy),
@@ -68,210 +47,81 @@ function scoreAreas(ctx: AIContext): InitialAssessment["areas"] {
     ),
     physical: clamp(s.activity * 6 + Math.min(b.movementMinutes, 40)),
     mind: clamp(100 - s.stress * 5.5 + s.mood * 3.5),
-    productivity: clamp(s.work * 5 + (10 - Math.min(b.phoneHours, 10)) * 4 + b.discipline * 2),
+    productivity: clamp(
+      s.work * 5 + (10 - Math.min(b.phoneHours, 10)) * 4 + b.discipline * 2,
+    ),
     habits: n(s.habits),
     social: n(s.social),
     lifestyle: clamp(((s.nutrition + s.satisfaction + s.control) / 3) * 10),
   };
 
-  const focus = whyToAreas(ctx);
+  const focus = whyAreas(ctx.why.selected);
+  const why = primaryWhy(ctx.why.selected);
   return (Object.keys(base) as LifeAreaKey[]).map((key) => {
     const score = base[key];
     const problems: string[] = [];
-    if (key === "sleep" && score < 55) problems.push("Нестабильный или короткий сон");
-    if (key === "energy" && score < 55) problems.push("Энергия проседает днём");
-    if (key === "habits" && (focus.includes("habits") || score < 50))
+    if (key === whyToArea(why) && score < 55) {
+      problems.push(`Проседает тема «${whyLabel(why)}»`);
+    }
+    if (key === "sleep" && score < 55 && focus.includes("sleep")) {
+      problems.push("Нестабильный или короткий сон");
+    }
+    if (key === "energy" && score < 55 && focus.includes("energy")) {
+      problems.push("Энергия проседает днём");
+    }
+    if (key === "habits" && focus.includes("habits") && score < 50) {
       problems.push("Есть привычки, которые тянут вниз");
-    if (key === "physical" && score < 45) problems.push("Мало движения");
-    if (key === "mind" && s.stress >= 70) problems.push("Высокий стресс");
+    }
+    if (key === "physical" && score < 45 && focus.includes("physical")) {
+      problems.push("Мало движения");
+    }
+    if (key === "mind" && s.stress >= 7 && focus.includes("mind")) {
+      problems.push("Высокий стресс");
+    }
     return {
       key,
       score,
       trend: "stable" as const,
-      confidence: focus.includes(key) ? 0.86 : 0.62,
+      confidence: focus.includes(key) ? 0.86 : 0.55,
       problems,
       goals: ctx.goals.filter((g) => g.area === key).map((g) => g.title).slice(0, 2),
     };
   });
 }
 
+/** Priority follows onboarding why — never hijack to sleep/energy unless that was the goal. */
 function pickPriority(areas: InitialAssessment["areas"], ctx: AIContext): LifeAreaKey {
-  const ranked = [...areas].sort((a, b) => a.score - b.score);
-  const why = whyToAreas(ctx);
-  // Sleep first if weak — foundational
-  const sleep = areas.find((a) => a.key === "sleep");
-  if (sleep && sleep.score < 48) return "sleep";
-  if (why.includes("habits")) {
-    const habits = areas.find((a) => a.key === "habits");
-    if (habits && habits.score < 55) return "habits";
+  const selected = ctx.why.selected;
+  const primary = primaryWhy(selected);
+  const primaryArea = whyToArea(primary);
+  const primaryScore = areas.find((a) => a.key === primaryArea)?.score ?? 50;
+
+  if (selected.length > 1) {
+    const rankedWhy = selected
+      .map((w) => {
+        const area = whyToArea(w);
+        return { w, area, score: areas.find((a) => a.key === area)?.score ?? 50 };
+      })
+      .sort((a, b) => a.score - b.score);
+    if (rankedWhy[0] && rankedWhy[0].score < primaryScore - 8) {
+      return rankedWhy[0].area;
+    }
   }
-  if (why.includes("energy") || why.includes("sleep")) {
-    const energy = areas.find((a) => a.key === "energy");
-    if (energy && energy.score < 55) return energy.score < (sleep?.score ?? 100) ? "energy" : "sleep";
-  }
-  return ranked[0]?.key ?? "energy";
+
+  if (primaryScore < 70) return primaryArea;
+  return primaryArea;
 }
 
-function taskBank(area: LifeAreaKey, tiny: boolean, minutes: number): DailyPlanAI["tasks"] {
-  const easy = tiny || minutes <= 15;
-  const bank: Record<LifeAreaKey, DailyPlanAI["tasks"]> = {
-    sleep: [
-      {
-        title: easy ? "Ляг до привычного времени +15 мин раньше" : "Ляг до 00:30",
-        detail: "Не идеальный сон. Просто чуть раньше, чем обычно.",
-        duration: 1,
-        difficulty: 1,
-        category: "sleep",
-        why: "Сон сейчас даёт больше эффекта, чем ещё одна привычка.",
-        xp: 12,
-      },
-      {
-        title: "Телефон на зарядку вне кровати",
-        duration: 2,
-        difficulty: 1,
-        category: "sleep",
-        why: "Меньше позднего света — легче уснуть.",
-        xp: 10,
-      },
-      {
-        title: "2 минуты без экрана перед сном",
-        duration: 2,
-        difficulty: 1,
-        category: "sleep",
-        xp: 8,
-      },
-    ],
-    energy: [
-      {
-        title: "Стакан воды в первые 10 минут после подъёма",
-        duration: 2,
-        difficulty: 1,
-        category: "energy",
-        why: "Маленький якорь утра без героизма.",
-        xp: 8,
-      },
-      {
-        title: easy ? "5 минут на воздухе" : "12 минут прогулки",
-        detail: "Неважно куда. Цель — просто выйти.",
-        duration: easy ? 5 : 12,
-        difficulty: easy ? 1 : 2,
-        category: "movement",
-        why: "Короткое движение поднимает энергию быстрее кофе.",
-        xp: 14,
-      },
-      {
-        title: "Один блок без уведомлений — 25 минут",
-        duration: 25,
-        difficulty: 2,
-        category: "focus",
-        xp: 12,
-      },
-    ],
-    physical: [
-      {
-        title: easy ? "Пройди 8 минут после еды" : "20 минут ходьбы",
-        duration: easy ? 8 : 20,
-        difficulty: easy ? 1 : 2,
-        category: "movement",
-        detail: "После обеда или ужина. Без маршрута.",
-        why: "Движение должно быть скучно-простым, чтобы повторялось.",
-        xp: 14,
-      },
-      {
-        title: "10 приседаний у стены — без перфекционизма",
-        duration: 3,
-        difficulty: 1,
-        category: "movement",
-        xp: 10,
-      },
-    ],
-    mind: [
-      {
-        title: "Запиши 1 фразу: что сегодня давит",
-        duration: 2,
-        difficulty: 1,
-        category: "mind",
-        why: "Названное напряжение занимает меньше места.",
-        xp: 10,
-      },
-      {
-        title: "3 медленных выдоха перед следующим делом",
-        duration: 1,
-        difficulty: 1,
-        category: "mind",
-        xp: 8,
-      },
-    ],
-    productivity: [
-      {
-        title: "Выбери одно дело на 15 минут — и только его",
-        duration: 15,
-        difficulty: 2,
-        category: "focus",
-        why: "Дисциплина растёт из коротких завершённых циклов.",
-        xp: 14,
-      },
-      {
-        title: "Убери 5 лишних вкладок / иконок с главного экрана",
-        duration: 5,
-        difficulty: 1,
-        category: "focus",
-        xp: 8,
-      },
-    ],
-    habits: [
-      {
-        title: "Не курить первые 60 минут после подъёма",
-        detail: "Не «бросить навсегда». Только первый час.",
-        duration: 60,
-        difficulty: 2,
-        category: "habits",
-        why: "Утренний никотин сильнее закрепляет зависимость.",
-        xp: 18,
-      },
-      {
-        title: "Замени один импульс: вода вместо сигареты/снека",
-        duration: 3,
-        difficulty: 2,
-        category: "habits",
-        xp: 12,
-      },
-      {
-        title: "Отметь количество срывов без самокритики",
-        duration: 2,
-        difficulty: 1,
-        category: "habits",
-        why: "Данные важнее вины.",
-        xp: 8,
-      },
-    ],
-    social: [
-      {
-        title: "Одно короткое сообщение человеку, которого откладывал",
-        duration: 3,
-        difficulty: 1,
-        category: "social",
-        xp: 10,
-      },
-    ],
-    lifestyle: [
-      {
-        title: "Один нормальный приём пищи без телефона",
-        duration: 15,
-        difficulty: 1,
-        category: "lifestyle",
-        xp: 10,
-      },
-      {
-        title: "Выпей воды до кофе/энергетика",
-        duration: 2,
-        difficulty: 1,
-        category: "lifestyle",
-        xp: 8,
-      },
-    ],
-  };
-  return bank[area];
+function poolForWhy(ctx: AIContext, tiny: boolean): DailyPlanAI["tasks"] {
+  const selected = ctx.why.selected.length
+    ? ctx.why.selected
+    : (["other"] as WhyOption[]);
+  const minutes = ctx.constraints.minutesPerDay;
+  const tasks: DailyPlanAI["tasks"] = [];
+  for (const w of selected.slice(0, 2)) {
+    tasks.push(...tasksForWhy(w, tiny, minutes));
+  }
+  return tasks;
 }
 
 function recentCompletion(ctx: AIContext) {
@@ -282,24 +132,22 @@ export class MockAIService implements AIService {
   async generateInitialAssessment(ctx: AIContext) {
     const areas = scoreAreas(ctx);
     const priority = pickPriority(areas, ctx);
-    const secondary = [...areas].sort((a, b) => a.score - b.score).find((a) => a.key !== priority)?.key;
-    const strategy: string[] = [];
-    if (priority === "sleep") strategy.push("Стабилизировать сон");
-    if (priority === "habits" || whyToAreas(ctx).includes("habits" as never))
-      strategy.push("Снижать вредные привычки маленькими окнами");
-    strategy.push("Добавить ежедневное лёгкое движение");
-    strategy.push("Снизить перегрузку, не геройствовать");
-    strategy.push("Поднять энергию через режим, а не через мотивацию");
+    const why = primaryWhy(ctx.why.selected);
+    const secondaryWhy = ctx.why.selected[1];
+    const secondary = secondaryWhy
+      ? whyToArea(secondaryWhy)
+      : [...areas].sort((a, b) => a.score - b.score).find((a) => a.key !== priority)
+          ?.key;
+    const focusName = whyLabels(ctx.why.selected);
 
-    const uniqueStrategy = [...new Set(strategy)].slice(0, 5);
     return InitialAssessmentSchema.parse({
       priority,
       secondary,
-      reason: `${AREA_LABELS[priority]} сейчас сильнее всего тянет остальное вниз. Начнём отсюда — остальное подтянется легче.`,
-      confidence: 0.78,
-      strategy: uniqueStrategy,
+      reason: `Ты пришёл с запросом «${focusName}». Начнём отсюда — остальное подождёт.`,
+      confidence: 0.82,
+      strategy: strategiesFor(ctx.why.selected),
       areas,
-      summary: `Сейчас важнее не «стать новым человеком», а убрать главный тормоз: ${AREA_LABELS[priority].toLowerCase()}.`,
+      summary: `Не чиним всё сразу. Главный фокус — «${whyLabel(why)}».`,
     });
   }
 
@@ -331,37 +179,47 @@ export class MockAIService implements AIService {
   async generateDailyPlan(ctx: AIContext) {
     const assessmentAreas = scoreAreas(ctx);
     const priority = (ctx.priorityArea as LifeAreaKey) || pickPriority(assessmentAreas, ctx);
+    const why = primaryWhy(ctx.why.selected);
+    const focusName = whyLabel(why);
     const diff = await this.adjustDifficulty(ctx);
     const last = ctx.checkIns[ctx.checkIns.length - 1];
-    const energyTrendDown =
-      ctx.checkIns.length >= 3 &&
-      avg(ctx.checkIns.slice(-3).map((c) => c.energy)) <
-        avg(ctx.checkIns.slice(-6, -3).map((c) => c.energy) || [60]);
 
-    let focus = priority;
-    if (last && last.sleep <= 4) focus = "sleep";
-    if (last && last.energy <= 3 && focus !== "sleep") focus = "energy";
+    // Capacity can ease the day — it must not steal focus away from onboarding why.
+    const lowCapacity = last && last.energy <= 3;
+    const tiny =
+      ctx.constraints.preferTiny || diff.mode === "ease" || Boolean(lowCapacity);
+    const mode = lowCapacity ? "ease" : diff.mode;
+    const taskCount = lowCapacity ? Math.min(2, diff.taskCount) : diff.taskCount;
 
-    const tiny = ctx.constraints.preferTiny || diff.mode === "ease" || (last?.energy ?? 5) <= 3;
-    const pool = [
-      ...taskBank(focus, tiny, ctx.constraints.minutesPerDay),
-      ...taskBank(priority === focus ? "lifestyle" : priority, tiny, ctx.constraints.minutesPerDay),
-    ];
+    const pool = poolForWhy(ctx, tiny);
     const avoid = new Set(ctx.constraints.avoid.map((a) => a.toLowerCase()));
-    const filtered = pool.filter((t) => ![...avoid].some((a) => t.title.toLowerCase().includes(a)));
-    const tasks = filtered.slice(0, diff.taskCount);
+    const filtered = pool.filter(
+      (t) => ![...avoid].some((a) => t.title.toLowerCase().includes(a)),
+    );
+    const tasks = filtered.slice(0, taskCount);
 
-    const reason = energyTrendDown
-      ? `Последние дни энергия проседает. Сегодня без героизма — фокус на ${AREA_LABELS[focus].toLowerCase()}.`
-      : `Сегодня важнее всего ${AREA_LABELS[focus].toLowerCase()}. Остальное подождёт.`;
+    const focusTrendDown =
+      ctx.checkIns.length >= 3 &&
+      avg(ctx.checkIns.slice(-3).map((c) => focusScoreFromCheckIn(c, why))) <
+        avg(
+          ctx.checkIns.slice(-6, -3).map((c) => focusScoreFromCheckIn(c, why)) || [
+            5,
+          ],
+        );
+
+    const reason = lowCapacity
+      ? `Сил мало — план лёгкий, но всё ещё про «${focusName}».`
+      : focusTrendDown
+        ? `По «${focusName}» последние дни проседают. Сегодня без героизма — держим этот фокус.`
+        : `Сегодня продолжаем линию онбординга: «${focusName}».`;
 
     const motivation = await this.generateMotivation(ctx);
 
     return DailyPlanSchema.parse({
-      priority: focus,
+      priority: whyToArea(why) || priority,
       reason,
-      confidence: 0.8,
-      difficultyMode: diff.mode,
+      confidence: 0.84,
+      difficultyMode: mode,
       motivation: motivation.message,
       tasks,
       source: "mock",
@@ -374,62 +232,73 @@ export class MockAIService implements AIService {
   }
 
   async analyzeCheckIn(ctx: AIContext, checkIn: CheckInData) {
-    const scores: { key: LifeAreaKey; v: number }[] = [
-      { key: "energy", v: checkIn.energy * 10 },
-      { key: "sleep", v: checkIn.sleep * 10 },
-      { key: "mind", v: 100 - checkIn.stress * 10 },
-      { key: "physical", v: checkIn.activity * 10 },
-      { key: "productivity", v: checkIn.focus * 10 },
-      { key: "habits", v: checkIn.habits * 10 },
-    ];
-    scores.sort((a, b) => a.v - b.v);
-    const primary = scores[0].key;
-    const secondary = scores[1]?.key;
+    const why = primaryWhy(ctx.why.selected);
+    const focusArea = whyToArea(why);
+    const focusScore = focusScoreFromCheckIn(checkIn, why);
     let loadAdvice: "reduce" | "keep" | "increase" = "keep";
-    if (checkIn.energy <= 3 || checkIn.sleep <= 3 || checkIn.stress >= 8) loadAdvice = "reduce";
-    else if (checkIn.energy >= 8 && checkIn.drive >= 7 && recentCompletion(ctx) > 0.8) loadAdvice = "increase";
+    if (checkIn.energy <= 3 || focusScore <= 3 || checkIn.stress >= 8) {
+      loadAdvice = "reduce";
+    } else if (
+      checkIn.energy >= 8 &&
+      focusScore >= 7 &&
+      recentCompletion(ctx) > 0.8
+    ) {
+      loadAdvice = "increase";
+    }
 
     return CheckInAnalysisSchema.parse({
-      primaryIssue: primary,
-      secondaryIssue: secondary,
+      primaryIssue: focusArea,
+      secondaryIssue: checkIn.energy <= 3 ? "energy" : undefined,
       insight:
         loadAdvice === "reduce"
-          ? "Сегодня тело просит меньше нагрузки. Один–два шага — уже победа."
-          : `Слабое место сейчас — ${AREA_LABELS[primary].toLowerCase()}. Держим фокус там.`,
+          ? `Сегодня по «${whyLabel(why)}» лучше меньше нагрузки. Один–два шага — уже победа.`
+          : `Держим фокус на «${whyLabel(why)}» — это твоя тема из онбординга.`,
       loadAdvice,
-      confidence: 0.74,
+      confidence: 0.8,
     });
   }
 
   async analyzeProgress(ctx: AIContext) {
     const rate = Math.round(recentCompletion(ctx) * 100);
+    const focus = whyLabels(ctx.why.selected);
     return ProgressAnalysisSchema.parse({
-      summary: `За последние дни ты закрываешь около ${rate}% плана.`,
+      summary: `По «${focus}» ты закрываешь около ${rate}% плана.`,
       wins:
         ctx.momentumDays > 0
           ? [`Momentum ${ctx.momentumDays} дн.`, `Закрыто ${rate}% задач`]
           : ["Ты вернулся — это уже движение"],
-      risks: rate < 40 ? ["План пока тяжелее ресурса"] : ["Не раздувать список задач"],
-      nextMove: rate < 40 ? "Урезать день до 1–2 действий." : "Держать ритм и чуть усиливать одну зону.",
+      risks:
+        rate < 40
+          ? ["План пока тяжелее ресурса"]
+          : [`Не размывать фокус «${focus}»`],
+      nextMove:
+        rate < 40
+          ? "Урезать день до 1–2 действий по твоей теме."
+          : `Держать ритм по «${focus}».`,
     });
   }
 
   async generateMotivation(ctx: AIContext) {
     const rate = Math.round(recentCompletion(ctx) * 100);
-    const prefersStats = ctx.motivators.includes("statistics") || ctx.motivators.includes("visible_progress");
-    const prefersNarrative = ctx.motivators.includes("narrative") || ctx.motivators.includes("ai_feedback");
+    const focus = whyLabel(primaryWhy(ctx.why.selected));
+    const prefersStats =
+      ctx.motivators.includes("statistics") ||
+      ctx.motivators.includes("visible_progress");
+    const prefersNarrative =
+      ctx.motivators.includes("narrative") ||
+      ctx.motivators.includes("ai_feedback");
 
     let message: string;
     if (ctx.momentumDays >= 7) {
       message = prefersStats
-        ? `${ctx.momentumDays} дней подряд ты что-то делаешь. Не магия — ритм.`
-        : `Ритм уже есть. Сегодня просто не обнуляй его.`;
+        ? `${ctx.momentumDays} дней подряд по «${focus}». Не магия — ритм.`
+        : `Ритм по «${focus}» уже есть. Сегодня просто не обнуляй его.`;
     } else if (rate < 35) {
-      message = `Вчерашний план можно отпустить. Сегодня — короче и легче.`;
+      message = `Вчерашний план можно отпустить. Сегодня короче — но всё ещё про «${focus}».`;
     } else if (prefersNarrative) {
-      message = `Ты не чинишь жизнь целиком. Ты собираешь её из маленьких завершённых дней.`;
+      message = `Ты не чинишь жизнь целиком. Ты собираешь «${focus}» из маленьких завершённых дней.`;
     } else {
-      message = `Сделай минимум. Остальное — бонус.`;
+      message = `Сделай минимум по «${focus}». Остальное — бонус.`;
     }
 
     return MotivationSchema.parse({
@@ -452,63 +321,84 @@ export class MockAIService implements AIService {
         reply: safetyCoachReply("medical"),
         safetyTriggered: true,
         suggestProfessionalHelp: true,
-        relatedArea: "energy",
+        relatedArea: whyToArea(primaryWhy(ctx.why.selected)),
       });
     }
 
+    const why = primaryWhy(ctx.why.selected);
+    const focus = whyLabel(why);
+    const focusArea = whyToArea(why);
     const lower = message.toLowerCase();
-    const priority = (ctx.priorityArea as LifeAreaKey) || "energy";
     const last = ctx.checkIns[ctx.checkIns.length - 1];
     let reply: string;
 
     if (/устал|tired|энерг|energy|сил/.test(lower)) {
       reply = last
-        ? `По твоим чек-инам энергия около ${last.energy}/10, сон ${last.sleep}/10. Обычно в такой связке сначала чинят сон и убирают лишние задачи, а не добавляют мотивацию. Сегодня достаточно 1–2 лёгких действий.`
-        : `Усталость чаще лечится режимом, а не силой воли. Начнём с сна и одного короткого действия — без героизма.`;
+        ? `По сигналам: ресурс на план ${last.energy}/10, «${focus}» ${focusScoreFromCheckIn(last, why)}/10. Если сил мало — ужимаем день, но не меняем тему.`
+        : `Мало сил — ок. Держим тему «${focus}», но оставляем 1 короткое действие.`;
     } else if (/кур|smoke|никотин|сорвал/.test(lower)) {
-      reply = `Срыв — данные, не приговор. Не надо «бросить навсегда» сегодня. Рабочая рамка: одно окно без никотина (например, первый час после подъёма) и фиксация факта без самобичевания.`;
+      reply =
+        why === "smoking"
+          ? `Срыв — данные, не приговор. Не надо «бросить навсегда» сегодня. Рабочая рамка: одно окно без никотина и фиксация факта без самобичевания.`
+          : `Понял. Если курение мешает «${focus}», зафиксируем это в плане — но основной фокус всё ещё твоя тема из онбординга.`;
     } else if (/прогресс|progress|лучше/.test(lower)) {
-      reply = `Коротко: ${Math.round(recentCompletion(ctx) * 100)}% задач за последнее время, momentum ${ctx.momentumDays}. Это и есть прогресс — не идеальная жизнь, а повторяемость.`;
+      reply = `Коротко по «${focus}»: ${Math.round(recentCompletion(ctx) * 100)}% задач, momentum ${ctx.momentumDays}. Это и есть прогресс — повторяемость, не идеал.`;
     } else if (/сегодня|today|делать/.test(lower)) {
-      reply = `Сегодня приоритет — ${AREA_LABELS[priority]}. Открой «Сегодня» и закрой минимум. Если сил мало — оставь одну задачу.`;
+      reply = `Сегодня приоритет — «${focus}». Открой «Сегодня» и закрой минимум. Если сил мало — одну задачу.`;
     } else if (/не хочу|нет сил|lazy|апат/.test(lower)) {
-      reply = `Ок. Тогда план на минимум: одно действие меньше 5 минут. Не «начать новую жизнь» — просто не сделать день нулевым.`;
+      reply = `Ок. Тогда минимум по «${focus}»: одно действие меньше 5 минут. Не «новая жизнь» — просто не обнулить день.`;
+    } else if (/зеркал|внешн|вид|тело/.test(lower) && why === "appearance") {
+      reply = `По «Внешний вид» лучше не спорить с зеркалом, а сделать один маленький шаг заботы о теле — уход, еда или короткая ходьба. Оценка отражения подождёт.`;
     } else {
       reply = ctx.lifeProfileSummary
-        ? `${ctx.lifeProfileSummary} Можем разобрать сон, энергию, привычки или сегодняшний план — что полезнее сейчас?`
-        : `Я опираюсь на твой профиль и check-in, не на общие советы. Скажи, что сейчас больше всего мешает: сон, энергия, привычки или дисциплина.`;
+        ? `${ctx.lifeProfileSummary} Можем разобрать «${focus}» или сегодняшний план — что полезнее?`
+        : `Я опираюсь на твой онбординг («${focus}») и сигналы дня, не на общие советы. Что сейчас сильнее всего мешает по этой теме?`;
     }
 
     return CoachResponseSchema.parse({
       reply,
       safetyTriggered: false,
       suggestProfessionalHelp: false,
-      relatedArea: priority,
+      relatedArea: focusArea,
     });
   }
 
   async generateWeeklyReview(ctx: AIContext) {
     const rate = recentCompletion(ctx);
+    const why = primaryWhy(ctx.why.selected);
+    const focus = whyLabel(why);
     const areas = scoreAreas(ctx);
-    const sorted = [...areas].sort((a, b) => a.score - b.score);
-    const best = [...areas].sort((a, b) => b.score - a.score)[0];
-    const worst = sorted[0];
+    const focusArea = whyToArea(why);
+    const focusScore = areas.find((a) => a.key === focusArea)?.score ?? 50;
+    const related = whyAreas(ctx.why.selected);
+
     return WeeklyReviewSchema.parse({
       completionRate: rate,
-      biggestWin: best ? AREA_LABELS[best.key] : "Стабильность",
-      needsAttention: worst ? AREA_LABELS[worst.key] : "Сон",
-      nextFocus: worst
-        ? `Чуть усилить «${AREA_LABELS[worst.key].toLowerCase()}» одним маленьким правилом`
-        : "Держать ритм",
+      biggestWin:
+        rate >= 0.5
+          ? `Держишь курс по «${focus}»`
+          : `Вернулся к теме «${focus}»`,
+      needsAttention:
+        focusScore < 55
+          ? focus
+          : AREA_LABELS[
+              [...areas]
+                .filter((a) => related.includes(a.key))
+                .sort((a, b) => a.score - b.score)[0]?.key ?? focusArea
+            ],
+      nextFocus: `Продолжить «${focus}» одним маленьким правилом`,
       aiNote:
         rate >= 0.7
-          ? "Главный прогресс — стабильность. На следующей неделе добавим только одну новую привычку."
-          : "Неделя была рваной. Не наращиваем. Упрощаем план и возвращаем ритм.",
-      areaDeltas: areas.slice(0, 4).map((a) => ({
-        key: a.key,
-        label: AREA_LABELS[a.key],
-        delta: Math.round((a.score - 50) / 5),
-      })),
+          ? `Главный прогресс — стабильность по «${focus}». На следующей неделе не размывай фокус.`
+          : `Неделя была рваной. Не наращиваем. Упрощаем план и возвращаем ритм по «${focus}».`,
+      areaDeltas: areas
+        .filter((a) => related.includes(a.key) || a.key === focusArea)
+        .slice(0, 4)
+        .map((a) => ({
+          key: a.key,
+          label: AREA_LABELS[a.key],
+          delta: Math.round((a.score - 50) / 5),
+        })),
     });
   }
 }
