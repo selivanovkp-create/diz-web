@@ -10,7 +10,12 @@ export const maxDuration = 60;
 
 const ALLOWED_ORIGINS = [
   "https://selivanovkp-create.github.io",
+  "https://forma-seven-alpha.vercel.app",
+  "https://forma-selivanovkp-create.vercel.app",
   "https://t.me",
+  "https://web.telegram.org",
+  "https://webk.telegram.org",
+  "https://webz.telegram.org",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
 ];
@@ -21,11 +26,13 @@ function corsHeaders(origin: string | null) {
     (ALLOWED_ORIGINS.includes(origin) ||
       origin.endsWith(".vercel.app") ||
       origin.endsWith(".trycloudflare.com") ||
+      origin.endsWith(".telegram.org") ||
       origin.includes("localhost"));
   return {
     "Access-Control-Allow-Origin": allow && origin ? origin : ALLOWED_ORIGINS[0],
     "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Credentials": "true",
   };
 }
 

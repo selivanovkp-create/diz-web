@@ -52,6 +52,11 @@ export class RemoteAIService implements AIService {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(
+            `Доступ к API закрыт (${res.status}). На Vercel отключи Deployment Protection / Vercel Authentication для Production.`,
+          );
+        }
         throw new Error(data?.error || `AI API ${res.status}`);
       }
       const source: AiSource = data.source === "live" ? "live" : "mock";
