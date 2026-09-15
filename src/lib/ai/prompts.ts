@@ -78,7 +78,7 @@ export const PROMPTS = {
   "confidence": 0..1,
   "difficultyMode": "ease|hold|push",
   "motivation": string (<=120),
-  "tasks": [{ "title", "detail?", "duration?", "difficulty":1..5, "category", "why?", "xp":5..50 }]
+  "tasks": [{ "title", "detail?", "duration"?: number (минуты, число или опусти), "difficulty":1..5, "category", "why?", "xp":5..50 }]
 }
 Если энергия/сон низкие — ease и меньше задач.
 Контекст: ${JSON.stringify(compactContext(ctx))}`,

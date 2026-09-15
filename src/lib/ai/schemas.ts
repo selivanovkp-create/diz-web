@@ -11,14 +11,38 @@ export const LifeAreaKeySchema = z.enum([
   "lifestyle",
 ]);
 
+/** LLM often returns "", null, "10 мин" — never let that become NaN. */
+function looseInt(opts: {
+  min: number;
+  max: number;
+  fallback?: number;
+  optional?: boolean;
+}) {
+  return z.preprocess((raw) => {
+    if (raw === null || raw === undefined || raw === "") {
+      return opts.optional ? undefined : opts.fallback;
+    }
+    if (typeof raw === "string") {
+      const m = raw.replace(",", ".").match(/-?\d+(\.\d+)?/);
+      if (!m) return opts.optional ? undefined : opts.fallback;
+      raw = Number(m[0]);
+    }
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(n)) return opts.optional ? undefined : opts.fallback;
+    return Math.round(n);
+  }, opts.optional
+    ? z.number().int().min(opts.min).max(opts.max).optional()
+    : z.number().int().min(opts.min).max(opts.max).catch(opts.fallback ?? opts.min));
+}
+
 export const GeneratedTaskSchema = z.object({
   title: z.string().min(2).max(160),
   detail: z.string().max(400).optional(),
-  duration: z.coerce.number().int().min(1).max(120).optional(),
-  difficulty: z.coerce.number().int().min(1).max(5).catch(2),
+  duration: looseInt({ min: 1, max: 120, optional: true }),
+  difficulty: looseInt({ min: 1, max: 5, fallback: 2 }) as z.ZodType<number>,
   category: z.string().min(1).catch("lifestyle"),
   why: z.string().max(400).optional(),
-  xp: z.coerce.number().int().min(5).max(50).catch(10),
+  xp: looseInt({ min: 5, max: 50, fallback: 10 }) as z.ZodType<number>,
 });
 
 export const InitialAssessmentSchema = z.object({
