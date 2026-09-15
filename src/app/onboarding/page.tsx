@@ -37,86 +37,257 @@ type ScoreKey =
   | "satisfaction"
   | "control";
 
-/** Step 2 scales — strictly tied to selected goals (plot coherence). */
-const STATE_BY_WHY: Record<WhyOption, { key: ScoreKey; label: string }[]> = {
-  energy: [
-    { key: "energy", label: "Энергия днём" },
-    { key: "sleep", label: "Насколько высыпаешься" },
-  ],
-  sleep: [
-    { key: "sleep", label: "Качество сна" },
-    { key: "energy", label: "Энергия после сна" },
-  ],
-  smoking: [
-    { key: "habits", label: "Контроль над курением" },
-    { key: "stress", label: "Тяга от стресса" },
-  ],
-  fitness: [
-    { key: "activity", label: "Движение в неделю" },
-    { key: "energy", label: "Силы на тренировки" },
-  ],
-  stress: [
-    { key: "stress", label: "Уровень стресса" },
-    { key: "mood", label: "Настроение" },
-  ],
-  productivity: [
-    { key: "work", label: "Фокус на работе" },
-    { key: "energy", label: "Энергия к задачам" },
-  ],
-  discipline: [
-    { key: "habits", label: "Держу обещания себе" },
-    { key: "work", label: "Довожу дела до конца" },
-  ],
-  nutrition: [
-    { key: "nutrition", label: "Питание сейчас" },
-    { key: "habits", label: "Контроль еды" },
-  ],
-  alcohol: [
-    { key: "habits", label: "Контроль алкоголя" },
-    { key: "sleep", label: "Сон после вечеров" },
-  ],
-  relationships: [
-    { key: "social", label: "Близость с людьми" },
-    { key: "mood", label: "Настроение от общения" },
-  ],
-  confidence: [
-    { key: "satisfaction", label: "Уверенность в себе" },
-    { key: "mood", label: "Настроение" },
-  ],
-  focus: [
-    { key: "work", label: "Концентрация" },
-    { key: "stress", label: "Отвлечения / шум" },
-  ],
-  appearance: [
-    { key: "satisfaction", label: "Доволен внешним видом" },
-    { key: "activity", label: "Забота о теле" },
-    { key: "nutrition", label: "Питание" },
-  ],
-  other: [
-    { key: "satisfaction", label: "В целом доволен жизнью" },
-    { key: "control", label: "Чувство контроля" },
-  ],
+/** One coherent plot pack per goal — scales, blockers, and copy stay in sync. */
+const PLOT: Record<
+  WhyOption,
+  {
+    scales: { key: ScoreKey; label: string }[];
+    blockers: string[];
+    goalPlaceholder: string;
+    storyPlaceholder: string;
+  }
+> = {
+  energy: {
+    scales: [
+      { key: "energy", label: "Энергия днём" },
+      { key: "sleep", label: "Насколько высыпаешься" },
+    ],
+    blockers: [
+      "К обеду выгораю",
+      "Мало сплю",
+      "Телефон с утра",
+      "Нет движения",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: к обеду уже нет сил, вечером только диван…",
+    storyPlaceholder:
+      "Например: сплю по 5–6 часов, к 15:00 уже пустой, кофе не помогает…",
+  },
+  sleep: {
+    scales: [
+      { key: "sleep", label: "Качество сна" },
+      { key: "energy", label: "Энергия после сна" },
+    ],
+    blockers: [
+      "Поздно засыпаю",
+      "Мало сплю",
+      "Телефон перед сном",
+      "Просыпаюсь среди ночи",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: засыпаю после часа ночи, утром разбитый…",
+    storyPlaceholder:
+      "Например: кручу ленту до двух, потом долго не могу уснуть, будильник в 7…",
+  },
+  smoking: {
+    scales: [
+      { key: "habits", label: "Контроль над курением" },
+      { key: "stress", label: "Тяга от стресса" },
+    ],
+    blockers: [
+      "Курю от стресса",
+      "Курю по привычке",
+      "Курю с кофе / после еды",
+      "Окружение курит",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: хочу меньше пачки в день, особенно вечером…",
+    storyPlaceholder:
+      "Например: курю после каждого стресса на работе, вечером ещё сильнее тянет…",
+  },
+  fitness: {
+    scales: [
+      { key: "activity", label: "Движение в неделю" },
+      { key: "energy", label: "Силы на тренировки" },
+    ],
+    blockers: [
+      "Нет движения",
+      "Сижу целый день",
+      "Стыдно начинать",
+      "Нет времени",
+      "Вечно бросаю на 3-й день",
+      "Устаю после работы",
+    ],
+    goalPlaceholder: "Например: хочу снова ходить в зал 2 раза в неделю…",
+    storyPlaceholder:
+      "Например: сижу весь день, вечером нет сил, абонемент лежит без дела…",
+  },
+  stress: {
+    scales: [
+      { key: "stress", label: "Уровень стресса" },
+      { key: "mood", label: "Настроение" },
+    ],
+    blockers: [
+      "Хаос в голове",
+      "Не умею отдыхать",
+      "Перегружен работой",
+      "Реагирую резко",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: постоянно на взводе, сложно выдохнуть…",
+    storyPlaceholder:
+      "Например: мысли крутятся весь день, вечером не отпускает, срываюсь на мелочах…",
+  },
+  productivity: {
+    scales: [
+      { key: "work", label: "Фокус на работе" },
+      { key: "energy", label: "Энергия к задачам" },
+    ],
+    blockers: [
+      "Откладываю важное",
+      "К обеду выгораю",
+      "Хаос в голове",
+      "Телефон вместо работы",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: много задач, мало сделанного к концу дня…",
+    storyPlaceholder:
+      "Например: открываю ноут — и сразу мессенджеры, важные дела уезжают на вечер…",
+  },
+  discipline: {
+    scales: [
+      { key: "habits", label: "Держу обещания себе" },
+      { key: "work", label: "Довожу дела до конца" },
+    ],
+    blockers: [
+      "Вечно бросаю на 3-й день",
+      "Нет ритма дня",
+      "Откладываю важное",
+      "Телефон с утра",
+      "Нет времени",
+      "Хаос в голове",
+    ],
+    goalPlaceholder: "Например: начинаю с понедельника и срываюсь к среде…",
+    storyPlaceholder:
+      "Например: план на неделю красивый, к среде уже живу как раньше…",
+  },
+  nutrition: {
+    scales: [
+      { key: "nutrition", label: "Питание сейчас" },
+      { key: "habits", label: "Контроль еды" },
+    ],
+    blockers: [
+      "Ем от эмоций",
+      "Перекусываю на бегу",
+      "Поздно ужинаю",
+      "Сладкое вечером",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: хочу есть ровнее, без вечерних срывов…",
+    storyPlaceholder:
+      "Например: днём почти не ем, вечером наедаюсь и чувствую вину…",
+  },
+  alcohol: {
+    scales: [
+      { key: "habits", label: "Контроль алкоголя" },
+      { key: "sleep", label: "Сон после вечеров" },
+    ],
+    blockers: [
+      "Пью по вечерам",
+      "Пью от стресса",
+      "Сложно отказать в компании",
+      "Сон после этого плохой",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: хочу меньше пить по будням…",
+    storyPlaceholder:
+      "Например: после работы бокал «для расслабления», а потом уже несколько…",
+  },
+  relationships: {
+    scales: [
+      { key: "social", label: "Близость с людьми" },
+      { key: "mood", label: "Настроение от общения" },
+    ],
+    blockers: [
+      "Нет поддержки вокруг",
+      "Закрываюсь в себе",
+      "Мало живого общения",
+      "Конфликты выматывают",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: хочу ближе к близким, меньше дистанции…",
+    storyPlaceholder:
+      "Например: почти не пишу первым, откладываю встречи, потом чувствую одиночество…",
+  },
+  confidence: {
+    scales: [
+      { key: "satisfaction", label: "Уверенность в себе" },
+      { key: "mood", label: "Настроение" },
+    ],
+    blockers: [
+      "Сравниваю себя с другими",
+      "Боюсь выглядеть глупо",
+      "Критикую себя",
+      "Избегаю внимания",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: хочу спокойнее относиться к оценке других…",
+    storyPlaceholder:
+      "Например: сравниваю себя в соцсетях, потом опускаются руки что-то менять…",
+  },
+  focus: {
+    scales: [
+      { key: "work", label: "Концентрация" },
+      { key: "stress", label: "Отвлечения / шум" },
+    ],
+    blockers: [
+      "Телефон вместо работы",
+      "Хаос в голове",
+      "Откладываю важное",
+      "Много вкладок сразу",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder: "Например: не могу усидеть 20 минут без телефона…",
+    storyPlaceholder:
+      "Например: сажусь работать — через 5 минут уже в ленте или переписке…",
+  },
+  appearance: {
+    scales: [
+      { key: "satisfaction", label: "Доволен внешним видом" },
+      { key: "activity", label: "Забота о теле" },
+      { key: "nutrition", label: "Питание" },
+    ],
+    blockers: [
+      "Не нравится, что вижу в зеркале",
+      "Сравниваю себя с другими",
+      "Нет движения",
+      "Ем от эмоций",
+      "Забиваю на уход",
+      "Вечно бросаю на 3-й день",
+      "Нет времени",
+    ],
+    goalPlaceholder:
+      "Например: хочу лучше выглядеть и спокойнее относиться к зеркалу…",
+    storyPlaceholder:
+      "Например: не нравится отражение, из-за этого откладываю спорт и уход за собой…",
+  },
+  other: {
+    scales: [
+      { key: "satisfaction", label: "В целом доволен жизнью" },
+      { key: "control", label: "Чувство контроля" },
+    ],
+    blockers: [
+      "Не понимаю, с чего начать",
+      "Нет времени",
+      "Вечно бросаю на 3-й день",
+      "Хаос в голове",
+      "Нет поддержки вокруг",
+    ],
+    goalPlaceholder: "Например: опиши своими словами, что хочешь изменить…",
+    storyPlaceholder:
+      "Например: расскажи, что больше всего мешает и как это выглядит в обычном дне…",
+  },
 };
-
-const BLOCKER_POOL: { label: string; for: WhyOption[] | "all" }[] = [
-  { label: "Мало сплю", for: ["sleep", "energy"] },
-  { label: "К обеду выгораю", for: ["energy", "productivity", "focus"] },
-  { label: "Телефон с утра", for: ["energy", "sleep", "discipline", "focus"] },
-  { label: "Поздно засыпаю", for: ["sleep", "energy"] },
-  { label: "Курю от стресса", for: ["smoking", "stress"] },
-  { label: "Курю по привычке", for: ["smoking"] },
-  { label: "Нет движения", for: ["fitness", "energy", "stress", "appearance"] },
-  { label: "Сижу целый день", for: ["fitness", "productivity", "appearance"] },
-  { label: "Вечно бросаю на 3-й день", for: "all" },
-  { label: "Нет времени", for: "all" },
-  { label: "Хаос в голове", for: ["stress", "focus", "productivity", "discipline"] },
-  { label: "Ем от эмоций", for: ["nutrition", "stress", "appearance"] },
-  { label: "Пью по вечерам", for: ["alcohol", "stress", "sleep"] },
-  { label: "Откладываю важное", for: ["discipline", "productivity", "focus"] },
-  { label: "Нет поддержки вокруг", for: ["relationships", "confidence"] },
-  { label: "Сравниваю себя с другими", for: ["confidence", "appearance"] },
-  { label: "Не нравится, что вижу в зеркале", for: ["appearance", "confidence"] },
-];
 
 type Reveal = {
   priorities: string[];
@@ -139,6 +310,10 @@ const DEFAULT_SCORES: Scores = {
   satisfaction: 5,
   control: 5,
 };
+
+function plotGoals(selected: WhyOption[]): WhyOption[] {
+  return selected.length > 0 ? selected : ["other"];
+}
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -169,13 +344,13 @@ export default function OnboardingPage() {
   const [reveal, setReveal] = useState<Reveal | null>(null);
 
   const selected = why.selected;
+  const goals = useMemo(() => plotGoals(selected), [selected]);
 
   const visibleState = useMemo(() => {
-    const goals = selected.length > 0 ? selected : (["other"] as WhyOption[]);
     const seen = new Set<ScoreKey>();
     const fields: { key: ScoreKey; label: string }[] = [];
     for (const goal of goals) {
-      for (const field of STATE_BY_WHY[goal] ?? []) {
+      for (const field of PLOT[goal].scales) {
         if (seen.has(field.key)) continue;
         seen.add(field.key);
         fields.push(field);
@@ -183,24 +358,45 @@ export default function OnboardingPage() {
       }
     }
     return fields;
-  }, [selected]);
+  }, [goals]);
 
   const blockerOptions = useMemo(() => {
-    const labels = BLOCKER_POOL.filter(
-      (b) =>
-        b.for === "all" ||
-        selected.length === 0 ||
-        b.for.some((w) => selected.includes(w)),
-    ).map((b) => b.label);
-    return Array.from(
-      new Set([...labels, "Вечно бросаю на 3-й день", "Нет времени"]),
-    );
+    const labels: string[] = [];
+    for (const goal of goals) {
+      for (const b of PLOT[goal].blockers) {
+        if (!labels.includes(b)) labels.push(b);
+      }
+    }
+    return labels.slice(0, 8);
+  }, [goals]);
+
+  const goalPlaceholder = useMemo(() => {
+    if (selected.length === 0) {
+      return "Например: опиши, куда хочешь сдвинуться…";
+    }
+    return PLOT[selected[0]].goalPlaceholder;
   }, [selected]);
+
+  const storyPlaceholder = useMemo(() => {
+    return PLOT[goals[0]].storyPlaceholder;
+  }, [goals]);
+
+  const selectedLabels = selected
+    .map((id) => WHY.find((w) => w.id === id)?.label)
+    .filter(Boolean)
+    .join(", ");
+
+  const focusPhrase = selectedLabels || "твой сдвиг";
 
   useEffect(() => {
     if (!hydrated) return;
     if (completed && !reveal) router.replace("/today");
   }, [hydrated, completed, reveal, router]);
+
+  // Drop blockers that no longer match when goals change.
+  useEffect(() => {
+    setBlockers((prev) => prev.filter((b) => blockerOptions.includes(b)));
+  }, [blockerOptions]);
 
   if (!hydrated) {
     return (
@@ -249,10 +445,16 @@ export default function OnboardingPage() {
     setBehavior({
       sleepHours: scores.sleep <= 3 ? 5 : scores.sleep <= 5 ? 6 : scores.sleep <= 7 ? 7 : 8,
       sleepStable: scores.sleep,
-      phoneHours: blockers.includes("Телефон с утра") ? 6 : 3,
-      movementMinutes: blockers.includes("Нет движения") || blockers.includes("Сижу целый день")
-        ? 10
-        : scores.activity * 5,
+      phoneHours:
+        blockers.includes("Телефон с утра") ||
+        blockers.includes("Телефон перед сном") ||
+        blockers.includes("Телефон вместо работы")
+          ? 6
+          : 3,
+      movementMinutes:
+        blockers.includes("Нет движения") || blockers.includes("Сижу целый день")
+          ? 10
+          : scores.activity * 5,
       habitsToChange: blockers,
       triedBefore: blockers.join(", "),
       whyFailed: freeText || blockers.join("; "),
@@ -298,7 +500,7 @@ export default function OnboardingPage() {
         ].filter(Boolean),
         summary:
           profile?.summary ||
-          "Не нужно чинить всё сразу. Начнём с того, что сильнее всего мешает.",
+          `Не нужно чинить всё сразу. Начнём с того, что сильнее всего мешает по направлению «${focusPhrase}».`,
         tasks: (plan?.tasks ?? []).slice(0, 4).map((t) => t.title),
       });
       setOnboardingStep(5);
@@ -313,11 +515,6 @@ export default function OnboardingPage() {
     }
   }
 
-  const selectedLabels = selected
-    .map((id) => WHY.find((w) => w.id === id)?.label)
-    .filter(Boolean)
-    .join(", ");
-
   return (
     <Screen showHeader={false} className="pb-10">
       {step === 0 ? (
@@ -331,7 +528,7 @@ export default function OnboardingPage() {
             </h1>
             <p className="mt-4 max-w-[32ch] text-[15px] leading-relaxed text-muted">
               Короткий старт: цели → как сейчас → что мешает → сколько времени.
-              Forma соберёт первый план.
+              Forma соберёт первый план ровно под твой выбор.
             </p>
           </div>
           <div className="space-y-4">
@@ -364,7 +561,8 @@ export default function OnboardingPage() {
             Куда хочешь сдвинуться?
           </h1>
           <p className="mt-2 text-[15px] text-muted">
-            Выбери до 4 направлений. Дальше спросим именно про них.
+            Выбери до 4 направлений. Шкалы, помехи и примеры дальше будут только
+            про них.
           </p>
           <div className="mt-7 flex flex-wrap gap-2">
             {WHY.map((w) => (
@@ -388,7 +586,7 @@ export default function OnboardingPage() {
                 setWhy({ selected, custom: e.target.value });
               }}
               rows={3}
-              placeholder="Например: к обеду уже нет сил, вечером залипаю в телефон…"
+              placeholder={goalPlaceholder}
               className="w-full resize-none rounded-2xl border border-line bg-bg-elevated px-4 py-3 text-[15px] outline-none focus:border-ink"
             />
           </label>
@@ -411,17 +609,13 @@ export default function OnboardingPage() {
         <div className="rise pt-4">
           <p className="text-sm text-muted">2 / 4 · Сейчас</p>
           <h1 className="font-display mt-3 text-[2.05rem] leading-tight">
-            Как это у тебя сейчас?
+            Как с этим сейчас?
           </h1>
-          {selectedLabels ? (
-            <p className="mt-2 text-[15px] text-muted">
-              Смотрим на: {selectedLabels}
-            </p>
-          ) : (
-            <p className="mt-2 text-[15px] text-muted">
-              Отметь, как себя чувствуешь по ключевым шкалам.
-            </p>
-          )}
+          <p className="mt-2 text-[15px] text-muted">
+            {selectedLabels
+              ? `Оцени только то, что связано с «${selectedLabels}».`
+              : "Оцени ключевые шкалы — потом уточним помехи."}
+          </p>
           <div className="mt-8 space-y-7">
             {visibleState.map((f) => (
               <label key={f.key} className="block">
@@ -460,9 +654,9 @@ export default function OnboardingPage() {
             Что мешает сдвинуться?
           </h1>
           <p className="mt-2 text-[15px] text-muted">
-            Отметь типичные помехи
-            {selectedLabels ? ` для «${selectedLabels}»` : ""}. Можно добавить
-            свой текст — его прочитает Forma.
+            {selectedLabels
+              ? `Помехи именно для «${selectedLabels}». Свой текст тоже про это.`
+              : "Отметь типичные помехи. Можно добавить свой текст."}
           </p>
           <div className="mt-7 flex flex-wrap gap-2">
             {blockerOptions.map((b) => (
@@ -480,14 +674,15 @@ export default function OnboardingPage() {
               Свободная форма · по желанию
             </span>
             <p className="mb-3 text-sm text-muted">
-              Расскажи всё, что важно: проблемы, срывы, контекст жизни. Без
-              структуры — Forma разберёт.
+              {selectedLabels
+                ? `Расскажи, как «${selectedLabels}» выглядит в обычном дне: срывы, триггеры, контекст.`
+                : "Расскажи всё, что важно: проблемы, срывы, контекст. Forma разберёт."}
             </p>
             <textarea
               value={story}
               onChange={(e) => setStory(e.target.value)}
               rows={5}
-              placeholder="Например: сплю по 5–6 часов, к 15:00 уже пустой, вечером курю и сижу в телефоне до двух…"
+              placeholder={storyPlaceholder}
               className="w-full resize-none rounded-2xl border border-line bg-bg-elevated px-4 py-3 text-[15px] outline-none focus:border-ink"
             />
           </label>
@@ -513,7 +708,9 @@ export default function OnboardingPage() {
             Сколько времени реально есть в день?
           </h1>
           <p className="mt-2 text-[15px] text-muted">
-            Forma подгонит размер плана под этот лимит — не наоборот.
+            {selectedLabels
+              ? `На сдвиг по «${selectedLabels}» — Forma подгонит размер плана под этот лимит.`
+              : "Forma подгонит размер плана под этот лимит — не наоборот."}
           </p>
           <div className="mt-8 grid grid-cols-3 gap-2">
             {[10, 15, 20, 30, 45, 60].map((m) => (
@@ -533,7 +730,7 @@ export default function OnboardingPage() {
           </div>
           {(story.trim() || goalNote.trim()) && (
             <p className="mt-6 rounded-2xl bg-accent-soft px-4 py-3 text-sm text-ink-soft">
-              Forma учтёт твой свободный текст при сборке старта.
+              Учтём твой свободный текст про «{focusPhrase}» при сборке старта.
             </p>
           )}
           <div className="mt-10 flex gap-2">
